@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>8mb</title>
+<link rel="stylesheet" href="css/main.css">
+<script src="renderer.js" defer></script>
+</head>
+<body>
+<h1>8mb</h1>
+<p>Compressing videos for social media video file limits. (Currently compressing under <span id="fileSizeDisplay"></span>MB)</p>
+
+<div class="tabs">
+  <button class="tab-btn active" data-tab="compressTab">Compress</button>
+  <button class="tab-btn" data-tab="settingsTab">Settings</button>
+</div>
+
+<div id="compressTab" class="tab-content active">
+  <!-- Filesize stuff PLACEHOLDER non working-->
+  <div class="file-size"><p>Max filesize: </p>
+    <input type="number" id="fileSizeInput" placeholder="10" /><p>mb</p>
+  </div>
+  
+  <button id="selectFile">Select Video File</button>
+  <div id="filePathDisplay" style="margin-top:10px; font-style: italic; user-select: all;">None selected</div>
+
+  <img id="thumbnail" src="" alt="Video thumbnail" style="display: none;"/>
+
+  <label for="fileNameInput">Output Filename</label>
+  <input type="text" id="fileNameInput" placeholder="compressed.mp4" />
+
+  <button id="chooseOutputFolder">Select Output Folder</button>
+  <div id="folderOutputDisplay" style="margin-top:10px; font-style: italic; user-select: all;">None selected</div>
+
+  <progress id="progressBar" value="0" max="100"></progress>
+  <div id="statusText"></div>
+
+  <button id="compressBtn">Compress Video</button>
+</div>
+
+<div id="settingsTab" class="tab-content">
+  <div class="setting-row">
+    <label for="defaultOutput">Default Output Folder</label>
+    <input type="text" id="defaultOutput" readonly />
+    <button id="chooseDefaultFolder">Choose Folder</button>
+  </div>
+
+  <div class="setting-row checkbox">
+    <input type="checkbox" id="darkModeToggle" />
+    <label for="darkModeToggle">Dark Mode</label>
+  </div>
+
+  <div class="setting-row checkbox">
+    <input type="checkbox" id="qrCodeToggle"/>
+    <label for="qrCodeToggle">Generate QR Code</label>
+  </div>
+
+</div>
+</body>
+</html>

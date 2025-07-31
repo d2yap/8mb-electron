@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>QR Code</title>
+</head>
+<body style="text-align:center; font-family:sans-serif; padding:20px;">
+  <h2>Scan to Download</h2>
+  <img id="qrImage" style="width:300px; height:auto;" />
+  <p><a id="link" href="#" target="_blank"></a></p>
+
+  <script>
+    const { ipcRenderer } = require("electron");
+    ipcRenderer.on("load-qr", (event, { qr, url }) => {
+      document.getElementById("qrImage").src = qr;
+      const link = document.getElementById("link");
+      link.href = url;
+      link.textContent = url;
+    });
+  </script>
+</body>
+</html>
