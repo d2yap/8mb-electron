@@ -66,7 +66,8 @@ ipcMain.handle("compress-video", async (event, { inputPath,inputSize, outputPath
   //10 attempts
   while (attempt < 10) {
     await new Promise((resolve, reject) => {
-
+    //fluent-ffmpeg is depreciated so it might be better to
+    //consider alternatives.
       ffmpeg(inputPath)
         .videoBitrate(currentBitrate)
         .outputOptions(["-preset fast", "-y"])
@@ -80,7 +81,6 @@ ipcMain.handle("compress-video", async (event, { inputPath,inputSize, outputPath
           const time = parseInt(p.timemark.replace(/:/g, ''))
           const percent = (time / totalTime) * 100
           event.sender.send("compression-progress", percent);
-
         })
         .on("end", () => {
           const finalSize = fs.statSync(outputPath).size;
@@ -130,6 +130,7 @@ ipcMain.handle("get-thumbnail", async (event, inputPath) => {
 ipcMain.handle("serve-video", async (event, filePath) => {
   if (server) server.close();
   const expressApp = express();
+  //Change this soon..
   const port = 4321;
   const filename = path.basename(filePath);
 

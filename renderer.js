@@ -24,6 +24,7 @@ const defaultOutputInput = document.getElementById("defaultOutput");
 const chooseDefaultFolderBtn = document.getElementById("chooseDefaultFolder");
 const darkModeToggle = document.getElementById("darkModeToggle");
 const qrCodeToggle = document.getElementById("qrCodeToggle");
+const downloadProgressBar = document.getElementById("downloadProgressBar");
 
 let selectedFile = null;
 let selectedOutputFolder = null;
@@ -185,3 +186,4 @@ darkModeToggle.addEventListener("change", () => {
 const darkModeStored = window.localStorage.getItem("dark-mode") === "true";
 darkModeToggle.checked = darkModeStored;
 setDarkMode(darkModeStored);
+

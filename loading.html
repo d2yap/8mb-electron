@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Loading</title>
+  <style>
+    body {
+        margin-left:5%;
+        background-color: black;
+        color:white;
+        font-family: "Segoe UI", sans-serif;
+    }  
+
+  </style>
+</head>
+<body>
+  <h2>Downloading FFmpeg, please wait...</h2>
+  <progress id="downloadProgressBar" max="100" value="0"></progress>
+  <script>
+    // Loading bar for the start screen
+const { ipcRenderer } = require("electron");
+
+const progressBar = document.getElementById("downloadProgressBar");
+
+ipcRenderer.on("ffmpeg-download-progress", (event, percent) => {
+  if (progressBar) {
+    progressBar.value = percent;
+  }
+});
+  </script>
+</body>
+</html>

@@ -5,7 +5,8 @@ const path = require("path");
 const configPath = path.join(app.getPath("userData"), "config.json");
 
 const defaultConfig = {
-    defaultOutputFolder: ""
+    defaultOutputFolder: "",
+    ffmpegPath: ""
 };
 
 function configCheck(){
@@ -23,4 +24,16 @@ function setDefaultOutputFolder(folderPath){
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
 }
 
-module.exports = { getConfig, setDefaultOutputFolder };
+function setFFmpegPath(ffmpegPath) {
+    const config = getConfig();
+    config.ffmpegPath = ffmpegPath;
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+}
+
+function getFFmpegPath() {
+    const config = getConfig();
+    return config.ffmpegPath;
+}
+
+
+module.exports = { getConfig, setDefaultOutputFolder, setFFmpegPath, getFFmpegPath };
