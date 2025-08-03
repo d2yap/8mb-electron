@@ -14,6 +14,8 @@ const { allowedExtensions } = require("../variables/allowedExtensions");
 const { getConfig, setDefaultOutputFolder } = require("./configManager");
 
 let server;
+//For processing loops
+let isProcessing = false;
 
 function getAvailableFilename(filePath, inputPath) {
   let ext = path.extname(filePath);
@@ -57,50 +59,67 @@ ipcMain.handle("select-folder", async () => {
   return result.canceled ? null : result.filePaths[0];
 });
 
-ipcMain.handle("compress-video", async (event, { inputPath,inputSize, outputPath }) => {
-  outputPath = getAvailableFilename(outputPath, inputPath);
-  const maxSizeBytes = inputSize * 1024 * 1024;
-  let currentBitrate = 1000;
-  let attempt = 0;
-
-  //10 attempts
-  while (attempt < 10) {
-    await new Promise((resolve, reject) => {
-    //fluent-ffmpeg is depreciated so it might be better to
-    //consider alternatives.
-      ffmpeg(inputPath)
-        .videoBitrate(currentBitrate)
-        .outputOptions(["-preset fast", "-y"])
-        .output(outputPath)
-        .on('codecData', data => {
-          // HERE YOU GET THE TOTAL TIME
-          totalTime = parseInt(data.duration.replace(/:/g, '')) 
-          })
-        .on("progress", p => {
-          //stackoverflow thing..
-          const time = parseInt(p.timemark.replace(/:/g, ''))
-          const percent = (time / totalTime) * 100
-          event.sender.send("compression-progress", percent);
-        })
-        .on("end", () => {
-          const finalSize = fs.statSync(outputPath).size;
-          if (finalSize <= maxSizeBytes) {
-            resolve();
-          } else {
-            currentBitrate *= 0.85;
-            attempt++;
-            resolve();
-          }
-        })
-        .on("error", reject)
-        .run();
-    });
-
-    const size = fs.statSync(outputPath).size;
-    if (size <= maxSizeBytes) break;
+ipcMain.handle("compress-video", async (event, { inputPath, inputSize, outputPath }) => {
+  if (isProcessing) {
+    return { error: "Compression already in progress." };
   }
-  const size = fs.statSync(outputPath).size;
-  return { outputPath, size };
+
+  isProcessing = true;
+
+  try {
+    outputPath = getAvailableFilename(outputPath, inputPath);
+    const maxSizeBytes = inputSize * 1024 * 1024;
+    let currentBitrate = 1000;
+    let attempt = 0;
+
+    let finalSize = 0;
+    let totalTime = 0;
+
+    while (attempt < 10) {
+      await new Promise((resolve, reject) => {
+        ffmpeg(inputPath)
+          .videoBitrate(currentBitrate)
+          .outputOptions(["-preset fast", "-y"])
+          .output(outputPath)
+          .on("codecData", data => {
+            totalTime = parseInt(data.duration.replace(/:/g, '')) || 0;
+          })
+          .on("progress", p => {
+            const time = parseInt(p.timemark.replace(/:/g, '')) || 0;
+            const percent = totalTime ? (time / totalTime) * 100 : 0;
+            event.sender.send("compression-progress", percent);
+          })
+          .on("end", () => {
+            try {
+              finalSize = fs.statSync(outputPath).size;
+              if (finalSize <= maxSizeBytes) {
+                resolve(); // done!
+              } else {
+                currentBitrate *= 0.85; // try lower bitrate
+                attempt++;
+                resolve(); // loop again
+              }
+            } catch (err) {
+              reject(new Error("Failed to stat output file."));
+            }
+          })
+          .on("error", err => {
+            reject(new Error("FFmpeg error: " + err.message));
+          })
+          .run();
+      });
+
+      if (finalSize <= maxSizeBytes) {
+        break;
+      }
+    }
+
+    return { outputPath, size: finalSize };
+  } catch (err) {
+    return { error: err.message };
+  } finally {
+    isProcessing = false;
+  }
 });
 
 //grabs an image from the video

@@ -82,19 +82,18 @@ chooseOutputFolderBtn.addEventListener("click", async () => {
 
 compressBtn.addEventListener("click", async () => {
 
-  //Check  if fields are empty
+  //Check   if fields are empty
   if (!selectedFile || !selectedOutputFolder) {
     alert("Please select a video and output folder.");
     return;
   }
 
   let fileSize = fileSizeInput.value;
-  //Check if filesizeinput is a number and not less than 0
+  // check if filesizeinput is a number and not less than 0
   if(isNaN(fileSize)){
     alert("Please input a valid number for the size in MB.");
     return;
   }else if(fileSize < 0 || fileSize == "" || fileSize == null){
-    //Defaults
     fileSize = DEFAULT_FILE_SIZE;
   }
   fileSizeDisplay.textContent = fileSize;
@@ -115,27 +114,31 @@ compressBtn.addEventListener("click", async () => {
   statusText.textContent = "🔄 Compressing...";
 
   try {
-    const result = await ipcRenderer.invoke("compress-video", {
-      inputPath: selectedFile,
-      inputSize: fileSize,
-      outputPath,
-    });
+  const result = await ipcRenderer.invoke("compress-video", {
+    inputPath: selectedFile,
+    inputSize: fileSize,
+    outputPath,
+  });
 
-    progressBar.style.display = "none";
-    const sizeInMB = (result.size / (1024 * 1024)).toFixed(2);
-    statusText.textContent = `✅ Done: ${result.outputPath} ${sizeInMB}mb`;
-    thumbnail.style.display = "none";
-    // Show QR code window
-    ipcRenderer.send('task-complete', `${result.outputPath} ${sizeInMB}mb`)
-    // Checks if the toggle is checked
-    if(qrCodeToggle.checked){
-      await ipcRenderer.invoke("serve-video", result.outputPath);
-    }
-
-  } catch (err) {
-    progressBar.style.display = "none";
-    statusText.textContent = `❌ Error: ${err.message}`;
+  if (result.error) {
+    throw new Error(result.error);
   }
+
+  progressBar.style.display = "none";
+  const sizeInMB = (result.size / (1024 * 1024)).toFixed(2);
+  statusText.textContent = `✅ Done: ${result.outputPath} ${sizeInMB}mb`;
+  thumbnail.style.display = "none";
+
+  // QR stuff
+  ipcRenderer.send('task-complete', `${result.outputPath} ${sizeInMB}mb`);
+  if (qrCodeToggle.checked) {
+    await ipcRenderer.invoke("serve-video", result.outputPath);
+  }
+
+} catch (err) {
+  progressBar.style.display = "none";
+  statusText.textContent = `❌ Error: ${err.message || "Unknown error."}`;
+}
 });
 
 // Update progress bar from main
