@@ -1,10 +1,11 @@
-const { app, BrowserWindow } = require("electron");
+const { app, BrowserWindow, ipcMain } = require("electron");
 const { registerIpcHandlers } = require("./ipcHandlers");
 const { getConfig } = require("./configManager");
 const fs = require("fs");
 const ffmpeg = require("fluent-ffmpeg");
 const configManager = require("./configManager");
 const { downloadFFmpegWindows } = require("./download"); 
+const path = require("path");
 
 //logging / debug stuff
 const log = require("electron-log");
@@ -58,15 +59,38 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 700,
     height: 750,
+    acceptFirstMouse: true,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
+      navigateOnDragDrop: true,
+      // webSecurity: false,
+      // nodeIntegrationInWorker: true,
+      // enableRemoteModule: true,
+      // nativeWindowOpen: true,
     },
     autoHideMenuBar: true,
   });
 
   mainWindow.loadFile("index.html");
   mainWindow.setMenu(null);
+  mainWindow.webContents.openDevTools(); // Enable developer tools
+
+  // Handle file drops at the window level
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (url.startsWith('file:///')) {
+      event.preventDefault();
+      // Extract file path from URL and send to renderer
+      const filePath = url.replace('file:///', '');
+      if (filePath) {
+        const fileExtension = path.extname(filePath).toLowerCase();
+        const allowedExtensions = ['.mp4', '.avi', '.mov', '.mkv', '.wmv', '.flv', '.webm'];
+        if (allowedExtensions.includes(fileExtension)) {
+          mainWindow.webContents.send('file-dropped', filePath);
+        }
+      }
+    }
+  });
 }
 
 app.whenReady().then(async () => {

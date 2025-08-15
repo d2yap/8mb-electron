@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>8mb</title>
+<meta http-equiv="Content-Security-Policy" content="script-src 'self'" />
 <link rel="stylesheet" href="css/main.css">
 <script src="renderer.js" defer></script>
 </head>
@@ -22,13 +23,33 @@
     <input type="number" id="fileSizeInput" placeholder="10" /><p>mb</p>
   </div>
   
-  <button id="selectFile">Select Video File</button>
-  <div id="filePathDisplay" style="margin-top:10px; font-style: italic; user-select: all;">None selected</div>
+  <div id="dropZone" style="border: 2px dashed #ccc; padding: 20px; text-align: center;">
+    <p>Drag and drop video here, or click to select file</p>
+    <button id="selectFile">Select Video File</button>
+    <div id="filePathDisplay" style="margin-top:10px; font-style: italic; user-select: all;">None selected</div>
+    <input type="file" id="hiddenFileInput" accept="video/*" style="display: none;" />
+  </div>
 
   <img id="thumbnail" src="" alt="Video thumbnail" style="display: none;"/>
 
   <label for="fileNameInput">Output Filename</label>
   <input type="text" id="fileNameInput" placeholder="compressed.mp4" />
+
+  <label for="outputFormat">Output Format</label>
+  <select id="outputFormat">
+    <option value="mp4">MP4</option>
+    <option value="webm">WebM</option>
+    <option value="mov">MOV</option>
+    <option value="avi">AVI</option>
+  </select>
+
+  <label for="qualityInput">Quality (1-51, lower is better): <span id="qualityValue">23</span></label>
+  <input type="range" id="qualityInput" value="23" min="1" max="51" />
+
+  <div class="setting-row checkbox">
+    <input type="checkbox" id="noAudioToggle"/>
+    <label for="noAudioToggle">Remove Audio</label>
+  </div>
 
   <button id="chooseOutputFolder">Select Output Folder</button>
   <div id="folderOutputDisplay" style="margin-top:10px; font-style: italic; user-select: all;">None selected</div>
@@ -36,7 +57,10 @@
   <progress id="progressBar" value="0" max="100"></progress>
   <div id="statusText"></div>
 
-  <button id="compressBtn">Compress Video</button>
+  <div class="button-row">
+    <button id="compressBtn" class="primary">Compress Video</button>
+    <button id="stopCompressionBtn" class="danger" style="display: none;">Stop Compression</button>
+  </div>
 </div>
 
 <div id="settingsTab" class="tab-content">

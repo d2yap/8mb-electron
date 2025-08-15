@@ -16,6 +16,7 @@ const { getConfig, setDefaultOutputFolder } = require("./configManager");
 let server;
 //For processing loops
 let isProcessing = false;
+let shouldStop = false;
 
 function getAvailableFilename(filePath, inputPath) {
   let ext = path.extname(filePath);
@@ -59,66 +60,96 @@ ipcMain.handle("select-folder", async () => {
   return result.canceled ? null : result.filePaths[0];
 });
 
-ipcMain.handle("compress-video", async (event, { inputPath, inputSize, outputPath }) => {
+ipcMain.handle("stop-compression", async () => {
+  shouldStop = true;
+  isProcessing = false;
+  return { success: true };
+});
+
+ipcMain.handle("compress-video", async (event, { inputPath, inputSize, outputPath, noAudio, quality, outputFormat }) => {
   if (isProcessing) {
     return { error: "Compression already in progress." };
   }
-
   isProcessing = true;
-
+  shouldStop = false;
   try {
     outputPath = getAvailableFilename(outputPath, inputPath);
     const maxSizeBytes = inputSize * 1024 * 1024;
-    let currentBitrate = 1000;
-    let attempt = 0;
-
     let finalSize = 0;
-    let totalTime = 0;
+    let totalTimeSeconds = 0;
 
-    while (attempt < 10) {
-      await new Promise((resolve, reject) => {
-        ffmpeg(inputPath)
-          .videoBitrate(currentBitrate)
-          .outputOptions(["-preset fast", "-y"])
-          .output(outputPath)
-          .on("codecData", data => {
-            totalTime = parseInt(data.duration.replace(/:/g, '')) || 0;
-          })
-          .on("progress", p => {
-            const time = parseInt(p.timemark.replace(/:/g, '')) || 0;
-            const percent = totalTime ? (time / totalTime) * 100 : 0;
-            event.sender.send("compression-progress", percent);
-          })
-          .on("end", () => {
-            try {
-              finalSize = fs.statSync(outputPath).size;
-              if (finalSize <= maxSizeBytes) {
-                resolve(); // done!
-              } else {
-                currentBitrate *= 0.85; // try lower bitrate
-                attempt++;
-                resolve(); // loop again
-              }
-            } catch (err) {
-              reject(new Error("Failed to stat output file."));
-            }
-          })
-          .on("error", err => {
-            reject(new Error("FFmpeg error: " + err.message));
-          })
-          .run();
+    await new Promise((resolve, reject) => {
+      ffmpeg.ffprobe(inputPath, (err, metadata) => {
+        if (err) {
+          return reject(new Error("FFprobe error: " + err.message));
+        }
+        totalTimeSeconds = metadata.format.duration;
+        resolve();
       });
+    });
 
-      if (finalSize <= maxSizeBytes) {
-        break;
-      }
+    if (totalTimeSeconds === 0) {
+      return { error: "Could not determine video duration." };
     }
+
+    const outputOptions = ["-preset", "medium", "-y"];
+    let command = ffmpeg(inputPath);
+
+    if (noAudio) {
+      outputOptions.push("-an");
+    }
+
+    if (quality) {
+      outputOptions.push("-crf", quality);
+    } else {
+      const targetBitrate = (maxSizeBytes * 8) / totalTimeSeconds;
+      command.videoBitrate(targetBitrate);
+    }
+
+    await new Promise((resolve, reject) => {
+      command
+        .outputOptions(outputOptions)
+        .output(outputPath)
+        .on("progress", p => {
+          // Check if user wants to stop
+          if (shouldStop) {
+            command.kill('SIGKILL');
+            reject(new Error("Compression stopped by user"));
+            return;
+          }
+          
+          const time = parseInt(p.timemark.replace(/:/g, '')) || 0;
+          const percent = totalTimeSeconds ? (time / (totalTimeSeconds * 100)) * 100 : 0;
+          event.sender.send("compression-progress", percent);
+        })
+        .on("end", () => {
+          try {
+            finalSize = fs.statSync(outputPath).size;
+            resolve();
+          } catch (err) {
+            reject(new Error("Failed to stat output file."));
+          }
+        })
+        .on("error", err => {
+          reject(new Error("FFmpeg error: " + err.message));
+        })
+        .run();
+    });
 
     return { outputPath, size: finalSize };
   } catch (err) {
+    // Clean up partial output file if compression was stopped
+    if (shouldStop && fs.existsSync(outputPath)) {
+      try {
+        fs.unlinkSync(outputPath);
+      } catch (cleanupErr) {
+        console.error("Failed to cleanup partial file:", cleanupErr);
+      }
+    }
     return { error: err.message };
   } finally {
     isProcessing = false;
+    shouldStop = false;
   }
 });
 
