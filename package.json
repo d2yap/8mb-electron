@@ -4,7 +4,11 @@
   "main": "main/main.js",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder"
+    "dev:renderer": "cd src/renderer && vite",
+    "dev:electron": "wait-on http://localhost:5173 && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .",
+    "dev": "concurrently \"npm:dev:renderer\" \"npm:dev:electron\"",
+    "build:renderer": "cd src/renderer && vite build",
+    "build": "npm run build:renderer && electron-builder"
   },
   "build": {
     "appId": "com.github.d2yap",
@@ -13,13 +17,15 @@
       "main/",
       "variables/",
       "css/",
-      "index.html",
       "loading.html",
+      "preload.js",
       "qr.html",
-      "renderer.js"
+      "dist/**"
     ],
     "win": {
-      "target": ["portable"],
+      "target": [
+        "portable"
+      ],
       "icon": "build/icon.ico"
     }
   },
@@ -31,6 +37,7 @@
   "dependencies": {
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@ffprobe-installer/ffprobe": "^2.1.2",
+    "@shadcn/ui": "^0.0.4",
     "electron-log": "^5.4.1",
     "express": "^5.1.0",
     "fluent-ffmpeg": "^2.1.3",
@@ -39,7 +46,17 @@
     "unzipper": "^0.12.3"
   },
   "devDependencies": {
+    "autoprefixer": "^10.4.23",
     "electron": "^37.2.4",
-    "electron-builder": "^26.0.12"
+    "electron-builder": "^26.0.12",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.18",
+    "wait-on": "^7.0.1",
+    "vite": "^5.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "concurrently": "^8.2.0",
+    "cross-env": "^7.0.3"
+    ,"@vitejs/plugin-react": "^4.0.0"
   }
 }

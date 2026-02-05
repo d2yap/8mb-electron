@@ -9,7 +9,17 @@ ___
 ---
 #### Running in development environment
 1. Run `npm install`.
-2. Run `npm start`.
+2. Start the renderer dev server and Electron together:
+
+```bash
+npm run dev
+```
+
+This runs Vite (renderer) and Electron concurrently. To run only Electron (legacy start):
+
+```bash
+npm start
+```
 
 #### File access
 This program will access your user data folder in order to store configuration files. 

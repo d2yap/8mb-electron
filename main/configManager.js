@@ -26,6 +26,12 @@ function setDefaultOutputFolder(folderPath){
 
 function setFFmpegPath(ffmpegPath) {
     const config = getConfig();
+    // Normalize path to avoid stray separators/newlines
+    try {
+        ffmpegPath = path.normalize(ffmpegPath);
+    } catch (e) {
+        // fallback: keep original
+    }
     config.ffmpegPath = ffmpegPath;
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
 }

@@ -53,6 +53,15 @@ async function downloadFFmpegWindows(onProgress) {
 
   await downloadWithRedirect(downloadUrl, file, onProgress);
 
+  // Remove any previous extraction to ensure newer version replaces older
+  try {
+    if (fs.existsSync(extractPath)) {
+      fs.rmSync(extractPath, { recursive: true, force: true });
+    }
+  } catch (e) {
+    console.warn('Could not remove previous ffmpeg extract folder:', e.message || e);
+  }
+
   return new Promise((resolve, reject) => {
     fs.createReadStream(downloadPath)
       .pipe(unzipper.Extract({ path: extractPath }))
@@ -71,14 +80,44 @@ async function downloadFFmpegWindows(onProgress) {
 }
 
 function findFFmpegBinary(folder) {
+  if (!fs.existsSync(folder)) throw new Error('FFmpeg folder not found');
   const files = fs.readdirSync(folder, { withFileTypes: true });
-  const ffmpegFolder = files.find(
-    f => f.isDirectory() && f.name.includes("ffmpeg") && f.name.includes("essentials_build")
-  );
+  // Filter directories that look like the expected ffmpeg build folders
+  const candidates = files
+    .filter(f => f.isDirectory() && f.name.toLowerCase().includes('ffmpeg') && f.name.toLowerCase().includes('essentials_build'))
+    .map(f => ({ name: f.name, full: path.join(folder, f.name) }));
 
-  if (!ffmpegFolder) throw new Error("FFmpeg folder not found");
+  if (candidates.length === 0) throw new Error('FFmpeg folder not found');
 
-  return path.join(folder, ffmpegFolder.name, "bin", "ffmpeg.exe");
+  // Try to pick the newest by parsing version numbers in the folder name
+  const parsed = candidates.map(c => {
+    const m = c.name.match(/(\d+(?:\.\d+)*)/);
+    return { ...c, version: m ? m[1] : null };
+  });
+
+  parsed.sort((a, b) => {
+    if (a.version && b.version) {
+      const as = a.version.split('.').map(Number);
+      const bs = b.version.split('.').map(Number);
+      for (let i = 0; i < Math.max(as.length, bs.length); i++) {
+        const av = as[i] || 0;
+        const bv = bs[i] || 0;
+        if (av !== bv) return bv - av; // descending
+      }
+      return 0;
+    }
+    if (a.version) return -1;
+    if (b.version) return 1;
+    // Fallback to mtime descending
+    const aStat = fs.statSync(a.full);
+    const bStat = fs.statSync(b.full);
+    return bStat.mtimeMs - aStat.mtimeMs;
+  });
+
+  const chosen = parsed[0];
+  const ffmpegExe = path.join(chosen.full, 'bin', 'ffmpeg.exe');
+  if (!fs.existsSync(ffmpegExe)) throw new Error('ffmpeg.exe not found in ' + chosen.full);
+  return ffmpegExe;
 }
 
-module.exports = { downloadFFmpegWindows };
+module.exports = { downloadFFmpegWindows, findFFmpegBinary };
