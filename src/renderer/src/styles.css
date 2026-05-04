@@ -1,5 +1,9 @@
-@import '../../../css/main.css';
+@import "../../../css/main.css";
 
 /* small app-specific styles */
-body { margin: 0; }
-#root { padding: 12px; }
+body {
+  margin: 0;
+}
+#root {
+  padding: 12px;
+}

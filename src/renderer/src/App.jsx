@@ -19,6 +19,7 @@ export default function App() {
   const [isCompressing, setIsCompressing] = useState(false)
   const [defaultOutput, setDefaultOutput] = useState('')
   const [darkMode, setDarkMode] = useState(false)
+  const [darkLoaded, setDarkLoaded] = useState(false)
   const [qrCode, setQrCode] = useState(false)
   const [activeTab, setActiveTab] = useState('compressTab')
 
@@ -28,13 +29,19 @@ export default function App() {
       if (folder) {
         setDefaultOutput(folder)
         setSelectedOutputFolder(folder)
+        
       }
     }).catch(()=>{})
 
-    // load dark mode setting
-    const stored = window.localStorage.getItem('dark-mode') === 'true'
-    setDarkMode(stored)
-    document.body.classList.toggle('dark', stored)
+    // load dark mode setting from main config (fallbacks to false)
+    api.invoke('get-dark-mode').then((stored) => {
+      const val = !!stored
+      setDarkMode(val)
+      setDarkLoaded(true)
+      document.body.classList.toggle('dark', val)
+    }).catch(()=>{
+      setDarkLoaded(true)
+    })
 
     const offProgress = api.on && api.on('compression-progress', (percent) => {
       console.debug('[react] compression-progress', percent)
@@ -58,7 +65,11 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    window.localStorage.setItem('dark-mode', darkMode)
+    // persist dark mode to app config via IPC
+    // Only persist after we've loaded the stored value to avoid overwriting it
+    if (darkLoaded) {
+      try { api.invoke('save-dark-mode', !!darkMode).catch(()=>{}); } catch(e) {}
+    }
     document.body.classList.toggle('dark', darkMode)
   }, [darkMode])
 
@@ -147,7 +158,7 @@ export default function App() {
 
   return (
     <div style={{ padding: 16, fontFamily: 'sans-serif' }}>
-      <h1>8mb</h1>
+      <h1>8mb!</h1>
       <div className="tabs">
         <button className={`shadcn-button ${activeTab==='compressTab'?'active':''}`} onClick={()=>setActiveTab('compressTab')}>Compress</button>
         <button className={`shadcn-button ${activeTab==='settingsTab'?'active':''}`} onClick={()=>setActiveTab('settingsTab')}>Settings</button>
