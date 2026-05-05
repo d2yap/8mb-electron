@@ -2,10 +2,10 @@ const { app, BrowserWindow, ipcMain } = require("electron");
 const { registerIpcHandlers } = require("./ipcHandlers");
 const { getConfig } = require("./configManager");
 const fs = require("fs");
-const ffmpeg = require("fluent-ffmpeg");
 const configManager = require("./configManager");
-const { downloadFFmpegWindows } = require("./download"); 
+const { downloadFFmpegWindows } = require("./download");
 const path = require("path");
+const { allowedExtensions } = require("../variables/allowedExtensions");
 
 //logging / debug stuff
 const log = require("electron-log");
@@ -15,6 +15,12 @@ let loadingWindow;
 
 async function setupFFmpeg(mainWindow) {
   let ffmpegPath = configManager.getConfig().ffmpegPath;
+  console.log("Configured ffmpegPath (raw):", ffmpegPath);
+  try {
+    if (ffmpegPath) ffmpegPath = path.normalize(ffmpegPath);
+  } catch (e) {
+    // ignore
+  }
 
   if (!ffmpegPath || !fs.existsSync(ffmpegPath)) {
     console.log("FFmpeg not found or invalid path. Downloading...");
@@ -25,6 +31,9 @@ async function setupFFmpeg(mainWindow) {
           mainWindow.webContents.send("ffmpeg-download-progress", percent);
         }
       });
+      try {
+        ffmpegPath = path.normalize(ffmpegPath);
+      } catch (e) {}
       console.log("FFmpeg downloaded to:", ffmpegPath);
     } catch (error) {
       console.error("FFmpeg download failed:", error);
@@ -34,15 +43,31 @@ async function setupFFmpeg(mainWindow) {
     console.log("Using existing FFmpeg at:", ffmpegPath);
   }
 
-  ffmpeg.setFfmpegPath(ffmpegPath);
+  // Final validation: ensure file exists, else attempt to find in userData/ffmpeg
+  if (!fs.existsSync(ffmpegPath)) {
+    try {
+      const { findFFmpegBinary } = require("./download");
+      const candidate = findFFmpegBinary(
+        path.join(app.getPath("userData"), "ffmpeg"),
+      );
+      if (candidate && fs.existsSync(candidate)) {
+        ffmpegPath = path.normalize(candidate);
+        console.log("Located ffmpeg binary at:", ffmpegPath);
+        configManager.setFFmpegPath(ffmpegPath);
+      } else {
+        console.error("Failed to locate ffmpeg binary after download.");
+      }
+    } catch (err) {
+      console.error("Error searching for ffmpeg binary:", err);
+    }
+  }
 }
-
-
 
 function createLoadingWindow() {
   loadingWindow = new BrowserWindow({
     width: 400,
     height: 200,
+    icon: path.join(__dirname, "..", "icon", "favicon.ico"),
     frame: false,
     webPreferences: {
       nodeIntegration: true,
@@ -56,37 +81,48 @@ function createLoadingWindow() {
 }
 
 function createWindow() {
+  const devUrl = process.env.VITE_DEV_SERVER_URL; // set by dev script when running Vite
+
   mainWindow = new BrowserWindow({
     width: 700,
     height: 750,
+    icon: path.join(__dirname, "..", "icon", "favicon.ico"),
     acceptFirstMouse: true,
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
+      preload: path.join(__dirname, "..", "preload.js"),
+      nodeIntegration: false,
+      contextIsolation: true,
       navigateOnDragDrop: true,
-      // webSecurity: false,
-      // nodeIntegrationInWorker: true,
-      // enableRemoteModule: true,
-      // nativeWindowOpen: true,
     },
     autoHideMenuBar: true,
   });
 
-  mainWindow.loadFile("index.html");
+  if (devUrl) {
+    // In dev, Vite will serve the renderer app
+    mainWindow.loadURL(devUrl);
+  } else {
+    // In production, load the built renderer from dist
+    const indexPath = path.join(__dirname, "..", "dist", "index.html");
+    if (fs.existsSync(indexPath)) {
+      mainWindow.loadFile(indexPath);
+    } else {
+      // Fallback to legacy index.html if present
+      mainWindow.loadFile("index.html");
+    }
+  }
   mainWindow.setMenu(null);
-  mainWindow.webContents.openDevTools(); // Enable developer tools
+  //mainWindow.webContents.openDevTools(); // Enable developer tools
 
   // Handle file drops at the window level
-  mainWindow.webContents.on('will-navigate', (event, url) => {
-    if (url.startsWith('file:///')) {
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    if (url.startsWith("file:///")) {
       event.preventDefault();
       // Extract file path from URL and send to renderer
-      const filePath = url.replace('file:///', '');
+      const filePath = url.replace("file:///", "");
       if (filePath) {
         const fileExtension = path.extname(filePath).toLowerCase();
-        const allowedExtensions = ['.mp4', '.avi', '.mov', '.mkv', '.wmv', '.flv', '.webm'];
         if (allowedExtensions.includes(fileExtension)) {
-          mainWindow.webContents.send('file-dropped', filePath);
+          mainWindow.webContents.send("file-dropped", filePath);
         }
       }
     }
@@ -94,7 +130,12 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
-  getConfig();  // load config
+  // Set app user model ID for Windows taskbar
+  if (process.platform === "win32") {
+    app.setAppUserModelId("com.github.d2yap");
+  }
+
+  getConfig(); // load config
 
   createLoadingWindow();
 

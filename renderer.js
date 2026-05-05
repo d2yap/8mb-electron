@@ -206,6 +206,7 @@ compressBtn.addEventListener("click", async () => {
   progressBar.style.display = "block";
   progressBar.value = 0;
   statusText.textContent = "🔄 Compressing...";
+  console.debug('[renderer] compression started', { outputPath, quality, fileSize });
 
   try {
     const result = await ipcRenderer.invoke("compress-video", {
@@ -225,6 +226,7 @@ compressBtn.addEventListener("click", async () => {
     const sizeInMB = (result.size / (1024 * 1024)).toFixed(2);
     statusText.textContent = `✅ Done: ${result.outputPath} ${sizeInMB}mb`;
     thumbnail.style.display = "none";
+    console.debug('[renderer] compression finished', result);
 
     // QR stuff
     ipcRenderer.send('task-complete', `${result.outputPath} ${sizeInMB}mb`);
@@ -235,6 +237,7 @@ compressBtn.addEventListener("click", async () => {
   } catch (err) {
     progressBar.style.display = "none";
     statusText.textContent = `❌ Error: ${err.message || "Unknown error."}`;
+    console.error('[renderer] compression error', err);
   } finally {
     setButtonsDisabled(false);
   }
@@ -242,8 +245,21 @@ compressBtn.addEventListener("click", async () => {
 
 // Update progress bar from main
 ipcRenderer.on("compression-progress", (event, percent) => {
+  console.debug('[renderer] raw progress value received', percent);
+  let p = Number(percent);
+  if (isNaN(p)) {
+    console.warn('[renderer] compression-progress: received non-numeric percent', percent);
+    return;
+  }
+  
+  if (p > 0 && p <= 1) {
+    p = p * 100;
+  }
+
+  p = Math.max(0, Math.min(100, p));
   progressBar.style.display = "block";
-  progressBar.value = percent;
+  progressBar.value = p;
+  console.debug(`[renderer] progress update: ${p}% (normalized)`);
 });
 
 // Listen for file drops from main process
@@ -262,7 +278,7 @@ chooseDefaultFolderBtn.addEventListener("click", async () => {
 });
 
 // Tabs functionality
-const tabButtons = document.querySelectorAll(".tab-btn");
+const tabButtons = document.querySelectorAll(".shadcn-button");
 const tabContents = document.querySelectorAll(".tab-content");
 
 tabButtons.forEach((btn) => {

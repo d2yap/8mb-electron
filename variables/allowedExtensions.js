@@ -1,3 +1,3 @@
 //Currently allowed extensions
-const allowedExtensions = ["mp4", "mov", "avi", "mkv", "webm", "flv"];
+const allowedExtensions = ["mp4", "mkv", "webm"];
 module.exports = { allowedExtensions };
