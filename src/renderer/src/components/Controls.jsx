@@ -1,44 +1,114 @@
-import React from 'react'
+import React from "react";
+import {
+  Checkbox,
+  Slider,
+  NativeSelect,
+  TextInput,
+  Divider,
+  Button,
+  Text,
+} from "@mantine/core";
 
 export default function Controls({
-  fileName, setFileName,
-  fileSize, setFileSize,
-  quality, setQuality,
-  outputFormat, setOutputFormat,
-  noAudio, setNoAudio,
+  fileName,
+  setFileName,
+  fileSize,
+  setFileSize,
+  quality,
+  setQuality,
+  outputFormat,
+  setOutputFormat,
+  noAudio,
+  setNoAudio,
   chooseOutputFolder,
-  selectedOutputFolder
+  selectedOutputFolder,
 }) {
   return (
     <div style={{ marginTop: 12 }}>
-      <label>Output Filename</label>
-      <input id="fileNameInput" type="text" value={fileName} onChange={(e)=>setFileName(e.target.value)} placeholder="compressed.mp4" />
+      <Divider label="Output Settings" my="md" />
+      <TextInput
+        label="Target filesize (MB)"
+        description="Set the desired maximum filesize for the output video."
+        variant="default"
+        id="fileSizeInput"
+        type="number"
+        value={fileSize}
+        onChange={(e) => setFileSize(e.target.value)}
+        placeholder="10"
+      />
+      <TextInput
+        label="Output Filename"
+        description="Enter the desired name for the output video file."
+        id="fileNameInput"
+        value={fileName}
+        onChange={(e) => setFileName(e.target.value)}
+        placeholder="compressed.mp4"
+      />
 
-      <label>Output Format</label>
-      <select id="outputFormat" value={outputFormat} onChange={(e)=>setOutputFormat(e.target.value)}>
-        <option value="mp4">MP4</option>
-        <option value="webm">WebM</option>
-        <option value="mov">MOV</option>
-        <option value="avi">AVI</option>
-      </select>
+      <NativeSelect
+        id="outputFormat"
+        label="Output Format"
+        description="Select the desired output video format."
+        value={outputFormat}
+        onChange={(e) => {
+          console.debug("[Controls] Output format changed:", e.target.value);
+          setOutputFormat(e.target.value);
+        }}
+        data={[
+          { value: "mp4", label: "MP4" },
+          { value: "webm", label: "WebM" },
+          { value: "mov", label: "MOV" },
+          { value: "avi", label: "AVI" },
+        ]}
+      />
+      <Text size="sm" style={{ marginTop: 10 }}>
+        Quality (1-51): <span id="qualityValue">{quality}</span>
+      </Text>
 
-      <label>Quality (1-51): <span id="qualityValue">{quality}</span></label>
-      <input id="qualityInput" type="range" min="1" max="51" value={quality} onChange={(e)=>setQuality(Number(e.target.value))} />
+      <Slider
+        min={1}
+        max={51}
+        value={quality}
+        onChange={(val) => {
+          console.debug("[Controls] Quality changed:", val);
+          setQuality(val);
+        }}
+      />
+      {/* Debug: Quality */}
 
-      <div className="setting-row checkbox">
-        <input id="noAudioToggle" type="checkbox" checked={noAudio} onChange={(e)=>setNoAudio(e.target.checked)} />
-        <label htmlFor="noAudioToggle">Remove Audio</label>
-      </div>
+      <Checkbox
+        style={{ marginTop: 10 }}
+        id="noAudioToggle"
+        label="Remove Audio"
+        checked={noAudio}
+        onChange={(e) => {
+          console.debug("[Controls] Audio removed:", e.target.checked);
+          setNoAudio(e.target.checked);
+        }}
+      />
+      {/* Debug: Audio removed */}
 
       <div style={{ marginTop: 8 }}>
-        <button id="chooseOutputFolder" onClick={chooseOutputFolder}>Select Output Folder</button>
-        <div id="folderOutputDisplay" style={{ marginTop: 6, fontStyle: 'italic' }}>{selectedOutputFolder || 'None selected'}</div>
-      </div>
-
-      <div style={{ marginTop: 8 }}>
-        <label>Max filesize:</label>
-        <input id="fileSizeInput" type="number" value={fileSize} onChange={(e)=>setFileSize(e.target.value)} placeholder="10" /> mb
+        <Button
+          size="md"
+          color="blue"
+          id="chooseOutputFolder"
+          onClick={() => {
+            console.debug("[Controls] Output folder selected");
+            chooseOutputFolder();
+          }}
+        >
+          Select Output Folder
+        </Button>
+        {/* Debug: Output folder */}
+        <div
+          id="folderOutputDisplay"
+          style={{ marginTop: 6, fontStyle: "italic" }}
+        >
+          {selectedOutputFolder || "None selected"}
+        </div>
+        <Divider label="Progress" my="md" />
       </div>
     </div>
-  )
+  );
 }

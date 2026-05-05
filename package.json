@@ -37,7 +37,8 @@
   "dependencies": {
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@ffprobe-installer/ffprobe": "^2.1.2",
-    "@shadcn/ui": "^0.0.4",
+    "@mantine/core": "^7.17.8",
+    "@mantine/hooks": "^7.17.8",
     "electron-log": "^5.4.1",
     "express": "^5.1.0",
     "fluent-ffmpeg": "^2.1.3",

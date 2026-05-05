@@ -1,191 +1,260 @@
-import React, { useEffect, useState } from 'react'
-import FileSelector from './components/FileSelector'
-import Controls from './components/Controls'
-import Progress from './components/Progress'
-import Settings from './components/Settings'
-import api, { api as apiObj, path } from './api'
+import React, { useEffect, useState } from "react";
+import FileSelector from "./components/FileSelector";
+import Controls from "./components/Controls";
+import Progress from "./components/Progress";
+import Settings from "./components/Settings";
+import api, { api as apiObj, path } from "./api";
+import {
+  MantineProvider,
+  Tabs,
+  Title,
+  Paper,
+  TextInput,
+  Button,
+} from "@mantine/core";
 
 export default function App() {
-  const [selectedFile, setSelectedFile] = useState(null)
-  const [thumbnail, setThumbnail] = useState('')
-  const [selectedOutputFolder, setSelectedOutputFolder] = useState('')
-  const [fileName, setFileName] = useState('')
-  const [fileSize, setFileSize] = useState(10)
-  const [quality, setQuality] = useState(23)
-  const [outputFormat, setOutputFormat] = useState('mp4')
-  const [noAudio, setNoAudio] = useState(false)
-  const [progress, setProgress] = useState(0)
-  const [status, setStatus] = useState('Idle')
-  const [isCompressing, setIsCompressing] = useState(false)
-  const [defaultOutput, setDefaultOutput] = useState('')
-  const [darkMode, setDarkMode] = useState(false)
-  const [darkLoaded, setDarkLoaded] = useState(false)
-  const [qrCode, setQrCode] = useState(false)
-  const [activeTab, setActiveTab] = useState('compressTab')
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [thumbnail, setThumbnail] = useState("");
+  const [selectedOutputFolder, setSelectedOutputFolder] = useState("");
+  const [fileName, setFileName] = useState("");
+  const [fileSize, setFileSize] = useState(10);
+  const [quality, setQuality] = useState(23);
+  const [outputFormat, setOutputFormat] = useState("mp4");
+  const [noAudio, setNoAudio] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [status, setStatus] = useState("Idle");
+  const [isCompressing, setIsCompressing] = useState(false);
+  const [defaultOutput, setDefaultOutput] = useState("");
+  const [darkMode, setDarkMode] = useState(false);
+  const [darkLoaded, setDarkLoaded] = useState(false);
+  const [qrCode, setQrCode] = useState(false);
+  const [activeTab, setActiveTab] = useState("compressTab");
 
   useEffect(() => {
     // get default folder
-    api.invoke('get-default-folder').then(folder => {
-      if (folder) {
-        setDefaultOutput(folder)
-        setSelectedOutputFolder(folder)
-        
-      }
-    }).catch(()=>{})
+    api
+      .invoke("get-default-folder")
+      .then((folder) => {
+        if (folder) {
+          setDefaultOutput(folder);
+          setSelectedOutputFolder(folder);
+        }
+      })
+      .catch(() => {});
 
     // load dark mode setting from main config (fallbacks to false)
-    api.invoke('get-dark-mode').then((stored) => {
-      const val = !!stored
-      setDarkMode(val)
-      setDarkLoaded(true)
-      document.body.classList.toggle('dark', val)
-    }).catch(()=>{
-      setDarkLoaded(true)
-    })
+    api
+      .invoke("get-dark-mode")
+      .then((stored) => {
+        const val = !!stored;
+        setDarkMode(val);
+        setDarkLoaded(true);
+        document.body.classList.toggle("dark", val);
+      })
+      .catch(() => {
+        setDarkLoaded(true);
+      });
 
-    const offProgress = api.on && api.on('compression-progress', (percent) => {
-      console.debug('[react] compression-progress', percent)
-      let p = Number(percent)
-      if (!isNaN(p) && p > 0 && p <= 1) p = p * 100
-      if (isNaN(p)) return
-      p = Math.max(0, Math.min(100, p))
-      setProgress(p)
-      setStatus('Compressing')
-    })
+    const offProgress =
+      api.on &&
+      api.on("compression-progress", (percent) => {
+        console.debug("[react] compression-progress", percent);
+        let p = Number(percent);
+        if (!isNaN(p) && p > 0 && p <= 1) p = p * 100;
+        if (isNaN(p)) return;
+        p = Math.max(0, Math.min(100, p));
+        setProgress(p);
+        setStatus("Compressing");
+      });
 
-    const offFileDropped = api.on && api.on('file-dropped', (filePath) => {
-      setSelectedFile(filePath)
-      api.invoke('get-thumbnail', filePath).then(thumb => setThumbnail(thumb)).catch(()=>setThumbnail(''))
-    })
+    const offFileDropped =
+      api.on &&
+      api.on("file-dropped", (filePath) => {
+        setSelectedFile(filePath);
+        api
+          .invoke("get-thumbnail", filePath)
+          .then((thumb) => setThumbnail(thumb))
+          .catch(() => setThumbnail(""));
+      });
 
     return () => {
-      if (typeof offProgress === 'function') offProgress()
-      if (typeof offFileDropped === 'function') offFileDropped()
-    }
-  }, [])
+      if (typeof offProgress === "function") offProgress();
+      if (typeof offFileDropped === "function") offFileDropped();
+    };
+  }, []);
 
   useEffect(() => {
     // persist dark mode to app config via IPC
     // Only persist after we've loaded the stored value to avoid overwriting it
     if (darkLoaded) {
-      try { api.invoke('save-dark-mode', !!darkMode).catch(()=>{}); } catch(e) {}
+      try {
+        api.invoke("save-dark-mode", !!darkMode).catch(() => {});
+      } catch (e) {}
     }
-    document.body.classList.toggle('dark', darkMode)
-  }, [darkMode])
+    document.body.classList.toggle("dark", darkMode);
+  }, [darkMode]);
 
   const chooseOutputFolder = async () => {
-    const folder = await api.invoke('select-folder')
-    if (folder) setSelectedOutputFolder(folder)
-  }
+    const folder = await api.invoke("select-folder");
+    if (folder) setSelectedOutputFolder(folder);
+  };
 
   const onChooseDefaultFolder = async () => {
-    const folder = await api.invoke('select-default-folder')
+    const folder = await api.invoke("select-default-folder");
     if (folder) {
-      setDefaultOutput(folder)
-      setSelectedOutputFolder(folder)
-      await api.invoke('save-default-folder', folder)
+      setDefaultOutput(folder);
+      setSelectedOutputFolder(folder);
+      await api.invoke("save-default-folder", folder);
     }
-  }
+  };
 
   const setButtonsDisabled = (disabled) => {
-    setIsCompressing(disabled)
-  }
+    setIsCompressing(disabled);
+  };
 
   const onStopCompression = async () => {
     try {
-      await api.invoke('stop-compression')
-      setStatus('⏹️ Compression stopped by user')
-      setProgress(0)
-      setButtonsDisabled(false)
+      await api.invoke("stop-compression");
+      setStatus("⏹️ Compression stopped by user");
+      setProgress(0);
+      setButtonsDisabled(false);
     } catch (err) {
-      console.error('Failed to stop compression:', err)
+      console.error("Failed to stop compression:", err);
     }
-  }
+  };
 
   const onCompress = async () => {
     if (!selectedFile || !selectedOutputFolder) {
-      window.alert('Please select a video and output folder.')
-      return
+      window.alert("Please select a video and output folder.");
+      return;
     }
 
-    setButtonsDisabled(true)
+    setButtonsDisabled(true);
 
-    let fsVal = fileSize
-    if (isNaN(fsVal) || fsVal === '' || fsVal === null) {
-      window.alert('Please input a valid number for the size in MB.')
-      setButtonsDisabled(false)
-      return
+    let fsVal = fileSize;
+    if (isNaN(fsVal) || fsVal === "" || fsVal === null) {
+      window.alert("Please input a valid number for the size in MB.");
+      setButtonsDisabled(false);
+      return;
     }
 
-    let q = quality
+    let q = quality;
     if (isNaN(q) || q < 1 || q > 51) {
-      window.alert('Please input a valid quality number between 1 and 51.')
-      setButtonsDisabled(false)
-      return
+      window.alert("Please input a valid quality number between 1 and 51.");
+      setButtonsDisabled(false);
+      return;
     }
 
-    const baseName = path.basename(selectedFile, path.extname(selectedFile))
-    const filename = `${baseName}.${outputFormat}`
-    const outputPath = path.join(selectedOutputFolder, filename)
+    const baseName = path.basename(selectedFile, path.extname(selectedFile));
+    const filename = `${baseName}.${outputFormat}`;
+    const outputPath = path.join(selectedOutputFolder, filename);
 
-    setProgress(0)
-    setStatus('🔄 Compressing...')
+    setProgress(0);
+    setStatus("🔄 Compressing...");
 
     try {
-      const result = await api.invoke('compress-video', {
+      const result = await api.invoke("compress-video", {
         inputPath: selectedFile,
         inputSize: fsVal,
         outputPath,
         noAudio: noAudio,
         quality: q,
         outputFormat,
-      })
+      });
 
-      if (result && result.error) throw new Error(result.error)
+      if (result && result.error) throw new Error(result.error);
 
-      setProgress(0)
-      setStatus(`✅ Done: ${result.outputPath} ${(result.size/(1024*1024)).toFixed(2)}mb`)
-      setThumbnail('')
-      api.send('task-complete', `${result.outputPath} ${(result.size/(1024*1024)).toFixed(2)}mb`)
-      if (qrCode) await api.invoke('serve-video', result.outputPath)
+      setProgress(0);
+      setStatus(
+        `✅ Done: ${result.outputPath} ${(result.size / (1024 * 1024)).toFixed(2)}mb`,
+      );
+      setThumbnail("");
+      api.send(
+        "task-complete",
+        `${result.outputPath} ${(result.size / (1024 * 1024)).toFixed(2)}mb`,
+      );
+      if (qrCode) await api.invoke("serve-video", result.outputPath);
     } catch (err) {
-      setStatus(`❌ Error: ${err.message || 'Unknown error.'}`)
-      console.error('[react] compression error', err)
+      setStatus(`❌ Error: ${err.message || "Unknown error."}`);
+      console.error("[react] compression error", err);
     } finally {
-      setButtonsDisabled(false)
+      setButtonsDisabled(false);
     }
-  }
+  };
 
   return (
-    <div style={{ padding: 16, fontFamily: 'sans-serif' }}>
-      <h1>8mb!</h1>
-      <div className="tabs">
-        <button className={`shadcn-button ${activeTab==='compressTab'?'active':''}`} onClick={()=>setActiveTab('compressTab')}>Compress</button>
-        <button className={`shadcn-button ${activeTab==='settingsTab'?'active':''}`} onClick={()=>setActiveTab('settingsTab')}>Settings</button>
-      </div>
+    <MantineProvider forceColorScheme={darkMode ? "dark" : "light"}>
+      <div style={{ padding: 16, fontFamily: "sans-serif" }}>
+        <Title order={1}>8mb</Title>
+        <Tabs variant="pills" defaultValue="compressTab">
+          <Tabs.List>
+            <Tabs.Tab value="compressTab">Compress</Tabs.Tab>
+            <Tabs.Tab value="settingsTab">Settings</Tabs.Tab>
+          </Tabs.List>
 
-      <div id="compressTab" className={`tab-content ${activeTab==='compressTab' ? 'active' : ''}`}>
-          <div className="file-size">
-            <p>Max filesize:</p>
-            <input id="fileSizeInput" type="number" value={fileSize} onChange={(e)=>setFileSize(e.target.value)} />
-            <p>mb</p>
-          </div>
+          <Tabs.Panel value="compressTab">
+            <Paper shadow="sm" radius="md" withBorder p="xl" id="compressTab">
+              <FileSelector
+                selectedFile={selectedFile}
+                setSelectedFile={setSelectedFile}
+                thumbnail={thumbnail}
+                setThumbnail={setThumbnail}
+              />
 
-          <FileSelector selectedFile={selectedFile} setSelectedFile={setSelectedFile} thumbnail={thumbnail} setThumbnail={setThumbnail} />
+              <Controls
+                fileName={fileName}
+                setFileName={setFileName}
+                fileSize={fileSize}
+                setFileSize={setFileSize}
+                quality={quality}
+                setQuality={setQuality}
+                outputFormat={outputFormat}
+                setOutputFormat={setOutputFormat}
+                noAudio={noAudio}
+                setNoAudio={setNoAudio}
+                chooseOutputFolder={chooseOutputFolder}
+                selectedOutputFolder={selectedOutputFolder}
+              />
 
-          <Controls fileName={fileName} setFileName={setFileName} fileSize={fileSize} setFileSize={setFileSize} quality={quality} setQuality={setQuality} outputFormat={outputFormat} setOutputFormat={setOutputFormat} noAudio={noAudio} setNoAudio={setNoAudio} chooseOutputFolder={chooseOutputFolder} selectedOutputFolder={selectedOutputFolder} />
+              <Progress progress={progress} status={status} />
 
-          <Progress progress={progress} status={status} />
+              <div className="button-row" style={{ marginTop: 12 }}>
+                <Button
+                  id="compressBtn"
+                  color="blue"
+                  onClick={onCompress}
+                  disabled={isCompressing}
+                >
+                  Compress Video
+                </Button>
+                <Button
+                  id="stopCompressionBtn"
+                  className="danger"
+                  style={{ display: isCompressing ? "block" : "none" }}
+                  onClick={onStopCompression}
+                >
+                  Stop Compression
+                </Button>
+              </div>
+            </Paper>
+          </Tabs.Panel>
 
-          <div className="button-row" style={{ marginTop: 12 }}>
-            <button id="compressBtn" className="primary" disabled={isCompressing} onClick={onCompress}>Compress Video</button>
-            <button id="stopCompressionBtn" className="danger" style={{ display: isCompressing ? 'block' : 'none' }} onClick={onStopCompression}>Stop Compression</button>
-          </div>
-        </div>
-
-      <div id="settingsTab" className={`tab-content ${activeTab==='settingsTab' ? 'active' : ''}`}>
-        <Settings defaultOutput={defaultOutput} setDefaultOutput={setDefaultOutput} onChooseDefaultFolder={onChooseDefaultFolder} darkMode={darkMode} setDarkMode={setDarkMode} qrCode={qrCode} setQrCode={setQrCode} />
-      </div>
-    </div>
-  )
+          <Tabs.Panel value="settingsTab">
+            <div id="settingsTab">
+              <Settings
+                defaultOutput={defaultOutput}
+                setDefaultOutput={setDefaultOutput}
+                onChooseDefaultFolder={onChooseDefaultFolder}
+                darkMode={darkMode}
+                setDarkMode={setDarkMode}
+                qrCode={qrCode}
+                setQrCode={setQrCode}
+              />
+            </div>
+          </Tabs.Panel>
+        </Tabs>
+      </div>{" "}
+    </MantineProvider>
+  );
 }

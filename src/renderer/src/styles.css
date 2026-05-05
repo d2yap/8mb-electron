@@ -1,6 +1,5 @@
 @import "../../../css/main.css";
-
-/* small app-specific styles */
+@import "@mantine/core/styles.css"; /* small app-specific styles */
 body {
   margin: 0;
 }
