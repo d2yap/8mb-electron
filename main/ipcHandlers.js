@@ -5,11 +5,11 @@ const {
   dialog,
   Notification,
 } = require("electron");
+const { spawn } = require("child_process");
 const fs = require("fs");
 const os = require("os");
 const express = require("express");
 const QRCode = require("qrcode");
-const ffmpeg = require("fluent-ffmpeg");
 const path = require("path");
 
 //Debugging
@@ -22,12 +22,14 @@ const {
   setDefaultOutputFolder,
   setDarkMode,
   getDarkMode,
+  getFFmpegPath,
 } = require("./configManager");
 
 let server;
 //For processing loops
 let isProcessing = false;
 let shouldStop = false;
+let compressionProcess = null;
 
 function getAvailableFilename(filePath, inputPath) {
   let ext = path.extname(filePath);
@@ -56,6 +58,276 @@ function getAvailableFilename(filePath, inputPath) {
   return newPath;
 }
 
+// ============================================
+// HELPER FUNCTIONS: ffmpeg CLI via spawn()
+// ============================================
+
+/**
+ * Get video duration using ffprobe
+ * Replaces: ffmpeg.ffprobe() / old fluent-ffmpeg implementation
+ */
+function getVideoDuration(inputPath) {
+  return new Promise((resolve, reject) => {
+    const ffmpegPath = getFFmpegPath();
+    if (!ffmpegPath) {
+      return reject(new Error("FFmpeg path not configured"));
+    }
+
+    // ffprobe is in the same directory as ffmpeg
+    const ffprobePath = path.join(path.dirname(ffmpegPath), "ffprobe.exe");
+
+    log.info(`Attempting to run ffprobe: ${ffprobePath}`);
+    log.info(`Input file: ${inputPath}`);
+
+    // Check if ffprobe exists
+    if (!fs.existsSync(ffprobePath)) {
+      return reject(new Error(`ffprobe not found at ${ffprobePath}`));
+    }
+
+    // Use JSON output format (more reliable across versions)
+    const ffprobe = spawn(ffprobePath, [
+      "-v",
+      "error",
+      "-show_entries",
+      "format=duration",
+      "-of",
+      "json",
+      inputPath,
+    ]);
+
+    let output = "";
+    let errorOutput = "";
+
+    ffprobe.stdout.on("data", (data) => {
+      output += data.toString();
+    });
+
+    ffprobe.stderr.on("data", (data) => {
+      errorOutput += data.toString();
+      log.error(`ffprobe stderr: ${data.toString()}`);
+    });
+
+    ffprobe.on("close", (code) => {
+      if (code !== 0) {
+        log.error(`ffprobe exited with code ${code}, stderr: ${errorOutput}`);
+        return reject(
+          new Error(`ffprobe failed with code ${code}: ${errorOutput}`),
+        );
+      }
+      try {
+        const json = JSON.parse(output);
+        const duration = parseFloat(json.format.duration);
+        if (isNaN(duration)) {
+          log.error(`Could not parse duration from JSON: ${output}`);
+          return reject(new Error("Could not parse duration"));
+        }
+        log.info(`Parsed duration: ${duration}s`);
+        resolve(duration);
+      } catch (err) {
+        log.error(`Failed to parse ffprobe JSON output: ${err.message}`);
+        return reject(err);
+      }
+    });
+
+    ffprobe.on("error", (err) => {
+      log.error(`ffprobe spawn error: ${err.message}`);
+      reject(err);
+    });
+  });
+}
+
+/**
+ * Compress video using spawn with progress tracking
+ * Replaces: ffmpeg(inputPath).outputOptions(...).run()
+ */
+async function compressVideoWithSpawn({
+  inputPath,
+  outputPath,
+  targetSizeMB,
+  quality = null, // if null, use bitrate targeting instead
+  noAudio = false,
+  totalTimeSeconds,
+  onProgress,
+  eventSender,
+}) {
+  const ffmpegPath = getFFmpegPath();
+  if (!ffmpegPath) throw new Error("FFmpeg path not configured");
+
+  // If a target size is set, ALWAYS use bitrate mode
+  let videoBitrateArg = null;
+  let crfArg = null;
+  // Safety margin to prevent overshooting target size
+  const SAFETY_MARGIN_MB = 0.05;
+  const effectiveTargetMB = targetSizeMB - SAFETY_MARGIN_MB;
+
+  if (targetSizeMB && totalTimeSeconds > 0) {
+    const audioBitrateKbps = noAudio ? 0 : 128;
+    const targetBits = effectiveTargetMB * 1024 * 1024 * 8;
+    const audioBits = audioBitrateKbps * 1000 * totalTimeSeconds;
+    const videoBits = targetBits - audioBits;
+    const videoBitrateKbps = Math.max(
+      100,
+      Math.floor(videoBits / totalTimeSeconds / 1000),
+    );
+    videoBitrateArg = `${videoBitrateKbps}k`;
+    log.info(
+      `Bitrate mode: ${videoBitrateKbps} kbps (target ${targetSizeMB}MB, ${totalTimeSeconds}s)`,
+    );
+  } else if (quality) {
+    crfArg = String(quality);
+    log.info(`CRF mode: ${quality}`);
+  } else {
+    crfArg = "23"; // fallback
+  }
+
+  // check if output is webm or mp4
+  const ext = path.extname(outputPath).toLowerCase();
+  const isWebM = ext === ".webm";
+  const args = ["-i", inputPath, "-y"];
+  if (isWebM) {
+    args.push(
+      "-c:v",
+      "libvpx-vp9",
+      "-b:v",
+      videoBitrateArg,
+      "-deadline",
+      "good",
+      "-cpu-used",
+      "2",
+    );
+
+    if (videoBitrateArg) {
+      args.push("-b:v", videoBitrateArg);
+    } else {
+      args.push("-crf", crfArg || "33", "-b:v", "0");
+    }
+
+    if (noAudio) {
+      args.push("-an");
+    } else {
+      args.push("-c:a", "libopus", "-b:a", "128k");
+    }
+  } else {
+    // mp4, mkv, mov, etc.
+    args.push("-c:v", "libx264", "-preset", "medium");
+    if (crfArg) {
+      args.push("-crf", crfArg);
+    } else {
+      args.push(
+        "-b:v",
+        videoBitrateArg,
+        "-maxrate",
+        videoBitrateArg,
+        "-bufsize",
+        `${parseInt(videoBitrateArg) * 2}k`,
+      );
+    }
+    if (noAudio) {
+      args.push("-an");
+    } else {
+      args.push("-c:a", "aac", "-b:a", "128k");
+    }
+  }
+
+  args.push(outputPath);
+
+  return new Promise((resolve, reject) => {
+    compressionProcess = spawn(ffmpegPath, args);
+    let lastPercent = 0;
+
+    // ffmpeg writes progress info to stderr
+    compressionProcess.stderr.on("data", (data) => {
+      if (shouldStop) return;
+
+      const stderr = data.toString();
+
+      // Parse progress line: "time=HH:MM:SS.ss"
+      const timeMatch = stderr.match(/time=(\d+):(\d+):(\d+\.\d+)/);
+      if (timeMatch) {
+        const [, hours, minutes, seconds] = timeMatch;
+        const currentSeconds =
+          parseInt(hours) * 3600 + parseInt(minutes) * 60 + parseFloat(seconds);
+        let percent = (currentSeconds / totalTimeSeconds) * 100;
+        percent = Math.min(99, Math.max(0, percent)); // Clamp 0-99
+
+        // Only report if changed by at least 1%
+        if (percent >= lastPercent + 1) {
+          lastPercent = percent;
+          log.debug(`Compression progress: ${percent.toFixed(2)}%`);
+          if (eventSender) {
+            eventSender.send("compression-progress", percent);
+          }
+          if (onProgress) onProgress(percent);
+        }
+      }
+    });
+
+    compressionProcess.on("close", (code) => {
+      compressionProcess = null;
+      if (code === 0) {
+        // Success
+        if (eventSender) {
+          eventSender.send("compression-progress", 100);
+        }
+        resolve();
+      } else {
+        log.error(`ffmpeg exited with code ${code}`);
+        reject(new Error(`ffmpeg exited with code ${code}`));
+      }
+    });
+
+    compressionProcess.on("error", (err) => {
+      compressionProcess = null;
+      log.error(`ffmpeg error: ${err.message}`);
+      reject(err);
+    });
+  });
+}
+
+/**
+ * Extract a frame from video as thumbnail
+ * Replaces: ffmpeg(inputPath).screenshots()
+ */
+async function generateThumbnail(inputPath, outputPath, timeSeconds = 1) {
+  const ffmpegPath = getFFmpegPath();
+  if (!ffmpegPath) {
+    throw new Error("FFmpeg path not configured");
+  }
+
+  const args = [
+    "-i",
+    inputPath,
+    "-ss",
+    String(timeSeconds),
+    "-vf",
+    "scale=320:-1",
+    "-vframes",
+    "1",
+    "-f",
+    "image2",
+    "-y",
+    outputPath,
+  ];
+
+  return new Promise((resolve, reject) => {
+    const ffmpeg = spawn(ffmpegPath, args);
+
+    ffmpeg.on("close", (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        log.error(`ffmpeg thumbnail failed with code ${code}`);
+        reject(new Error(`ffmpeg thumbnail failed with code ${code}`));
+      }
+    });
+
+    ffmpeg.on("error", (err) => {
+      log.error(`ffmpeg thumbnail error: ${err.message}`);
+      reject(err);
+    });
+  });
+}
+
 function registerIpcHandlers() {
   ipcMain.handle("select-video", async () => {
     // ONLY show files with these extensions..
@@ -76,6 +348,10 @@ function registerIpcHandlers() {
 
   ipcMain.handle("stop-compression", async () => {
     shouldStop = true;
+    if (compressionProcess) {
+      compressionProcess.kill("SIGKILL");
+      compressionProcess = null;
+    }
     isProcessing = false;
     return { success: true };
   });
@@ -93,7 +369,6 @@ function registerIpcHandlers() {
       shouldStop = false;
       try {
         outputPath = getAvailableFilename(outputPath, inputPath);
-        const maxSizeBytes = inputSize * 1024 * 1024;
         let finalSize = 0;
         let totalTimeSeconds = 0;
 
@@ -101,113 +376,46 @@ function registerIpcHandlers() {
           `Starting compression: input=${inputPath}, targetSize=${inputSize}MB, output=${outputPath}, noAudio=${noAudio}, quality=${quality}, format=${outputFormat}`,
         );
 
-        await new Promise((resolve, reject) => {
-          ffmpeg.ffprobe(inputPath, (err, metadata) => {
-            if (err) {
-              log.error(`FFprobe error for ${inputPath}: ${err.message}`);
-              return reject(new Error("FFprobe error: " + err.message));
-            }
-            totalTimeSeconds = metadata.format.duration;
-            log.info(`Video duration: ${totalTimeSeconds}s`);
-            resolve();
-          });
-        });
+        // Get video duration using ffprobe
+        try {
+          totalTimeSeconds = await getVideoDuration(inputPath);
+          log.info(`Video duration: ${totalTimeSeconds}s`);
+        } catch (err) {
+          log.error(`Failed to get video duration: ${err.message}`);
+          return { error: "Could not determine video duration." };
+        }
 
         if (totalTimeSeconds === 0) {
           log.error("Could not determine video duration.");
           return { error: "Could not determine video duration." };
         }
 
-        const outputOptions = ["-preset", "medium", "-y"];
-        let command = ffmpeg(inputPath);
-
-        if (noAudio) {
-          outputOptions.push("-an");
+        // Run compression with spawn
+        try {
+          await compressVideoWithSpawn({
+            inputPath,
+            outputPath,
+            targetSizeMB: inputSize,
+            quality,
+            noAudio,
+            totalTimeSeconds,
+            eventSender: event.sender,
+          });
+        } catch (err) {
+          log.error(`Compression failed: ${err.message}`);
+          throw err;
         }
 
-        if (quality) {
-          outputOptions.push("-crf", quality);
-          log.info(`Using CRF quality: ${quality}`);
-        } else {
-          const targetBitrateBps = (maxSizeBytes * 8) / totalTimeSeconds;
-          const targetBitrateKbps = Math.floor(targetBitrateBps / 1000);
-          command.videoBitrate(targetBitrateKbps);
+        // Get output file size
+        try {
+          finalSize = fs.statSync(outputPath).size;
           log.info(
-            `Using bitrate mode: target ${targetBitrateKbps} kbps (calculated from ${maxSizeBytes} bytes / ${totalTimeSeconds}s)`,
+            `Compression finished: output=${outputPath}, size=${finalSize} bytes (${(finalSize / (1024 * 1024)).toFixed(2)}MB)`,
           );
+        } catch (err) {
+          log.error(`Failed to stat output file: ${err.message}`);
+          return { error: "Failed to stat output file." };
         }
-
-        await new Promise((resolve, reject) => {
-          let lastPercent = 0;
-          command
-            .outputOptions(outputOptions)
-            .output(outputPath)
-            .on("progress", (p) => {
-              // Check if user wants to stop
-              if (shouldStop) {
-                log.info("Compression stopped by user");
-                command.kill("SIGKILL");
-                reject(new Error("Compression stopped by user"));
-                return;
-              }
-              // Debug raw values
-              log.silly(
-                `ffmpeg progress raw: percent=${p.percent} timemark=${p.timemark} frames=${p.frames}`,
-              );
-
-              // Prefer percent if provided by ffmpeg
-              let percent = null;
-              if (typeof p.percent === "number" && !isNaN(p.percent)) {
-                percent = p.percent;
-              } else if (p.timemark) {
-                try {
-                  const parts = p.timemark.split(":").map(Number);
-                  let seconds = 0;
-                  if (parts.length === 3)
-                    seconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
-                  else if (parts.length === 2)
-                    seconds = parts[0] * 60 + parts[1];
-                  else seconds = Number(p.timemark) || 0;
-                  if (totalTimeSeconds && !isNaN(seconds)) {
-                    percent = (seconds / totalTimeSeconds) * 100;
-                  }
-                } catch (e) {
-                  percent = 0;
-                }
-              }
-
-              if (percent === null || isNaN(percent)) percent = 0;
-              percent = Math.max(0, Math.min(100, percent));
-
-              // Enforce monotonic increase (allow final jump to 100)
-              if (percent < lastPercent && lastPercent < 99) {
-                percent = lastPercent;
-              }
-
-              lastPercent = percent;
-              log.debug(`Compression progress: ${percent.toFixed(2)}%`);
-              event.sender.send("compression-progress", percent);
-            })
-            .on("end", () => {
-              try {
-                finalSize = fs.statSync(outputPath).size;
-                log.info(
-                  `Compression finished: output=${outputPath}, size=${finalSize} bytes (${(finalSize / (1024 * 1024)).toFixed(2)}MB)`,
-                );
-                resolve();
-              } catch (err) {
-                log.error(
-                  `Failed to stat output file ${outputPath}: ${err.message}`,
-                );
-                reject(new Error("Failed to stat output file."));
-              }
-            })
-            .on("error", (err) => {
-              log.error(`FFmpeg error: ${err.message}`);
-              reject(new Error("FFmpeg error: " + err.message));
-            })
-            .run();
-        });
 
         return { outputPath, size: finalSize };
       } catch (err) {
@@ -225,6 +433,7 @@ function registerIpcHandlers() {
       } finally {
         isProcessing = false;
         shouldStop = false;
+        compressionProcess = null;
       }
     },
   );
@@ -237,63 +446,101 @@ function registerIpcHandlers() {
         `thumb-${Date.now()}.jpg`,
       );
 
-      ffmpeg(inputPath)
-        .screenshots({
-          timestamps: ["1"],
-          filename: path.basename(thumbnailPath),
-          folder: path.dirname(thumbnailPath),
-          size: "320x?",
-        })
-        .on("end", () => {
+      generateThumbnail(inputPath, thumbnailPath, 1)
+        .then(() => {
           fs.readFile(thumbnailPath, (err, data) => {
+            // Clean up temp file
+            fs.unlink(thumbnailPath, () => {});
+
             if (err) return reject(err);
             resolve(`data:image/jpeg;base64,${data.toString("base64")}`);
-            fs.unlink(thumbnailPath, () => {});
           });
         })
-        .on("error", reject);
+        .catch(reject);
     });
   });
 
   //IP stuff
   ipcMain.handle("serve-video", async (event, filePath) => {
-    if (server) server.close();
-    const expressApp = express();
-    //Change this soon..
-    const port = 4321;
-    const filename = path.basename(filePath);
+    try {
+      // Validate file exists
+      if (!fs.existsSync(filePath)) {
+        throw new Error("File not found");
+      }
 
-    expressApp.get("/", (req, res) =>
-      res.send(`<a href=\"/file\">Download ${filename}</a>`),
-    );
-    expressApp.get("/file", (req, res) => res.download(filePath));
-    server = expressApp.listen(port);
+      // Close previous server if it exists
+      if (server) {
+        await new Promise((resolve) => server.close(resolve));
+      }
 
-    const localIP = Object.values(os.networkInterfaces())
-      .flat()
-      .find((i) => i.family === "IPv4" && !i.internal).address;
+      const expressApp = express();
+      const filename = path.basename(filePath);
 
-    const url = `http://${localIP}:${port}/file`;
-    const qr = await QRCode.toDataURL(url);
+      expressApp.get("/", (req, res) =>
+        res.send(`<a href="/file">Download ${filename}</a>`),
+      );
+      expressApp.get("/file", (req, res) => res.download(filePath));
 
-    const qrWindow = new BrowserWindow({
-      width: 400,
-      height: 500,
-      title: "QR Code",
-      resizable: false,
-      autoHideMenuBar: true,
-      webPreferences: {
-        nodeIntegration: true,
-        contextIsolation: false,
-      },
-    });
+      // Find available port (let OS choose)
+      const port = await new Promise((resolve, reject) => {
+        const srv = expressApp.listen(0, () => {
+          const assignedPort = srv.address().port;
+          srv.close(() => resolve(assignedPort));
+        });
+        srv.on("error", reject);
+      });
 
-    qrWindow.loadFile("qr.html");
-    qrWindow.webContents.on("did-finish-load", () => {
-      qrWindow.webContents.send("load-qr", { qr, url });
-    });
+      // Start server on the found port
+      await new Promise((resolve, reject) => {
+        server = expressApp.listen(port, (err) => {
+          if (err) reject(err);
+          else resolve();
+        });
+        server.on("error", reject);
+      });
 
-    return { url };
+      // Get local IP with fallback to localhost
+      const localIP =
+        Object.values(os.networkInterfaces())
+          .flat()
+          .find((i) => i.family === "IPv4" && !i.internal)?.address ||
+        "localhost";
+
+      const url = `http://${localIP}:${port}/file`;
+      const qr = await QRCode.toDataURL(url);
+
+      const qrWindow = new BrowserWindow({
+        width: 400,
+        height: 500,
+        title: "QR Code",
+        resizable: false,
+        autoHideMenuBar: true,
+        webPreferences: {
+          nodeIntegration: false,
+          contextIsolation: true,
+          preload: path.join(__dirname, "..", "preload.js"),
+        },
+      });
+
+      qrWindow.loadFile("qr.html");
+      qrWindow.webContents.on("did-finish-load", () => {
+        qrWindow.webContents.send("load-qr", { qr, url });
+      });
+
+      // Clean up server when window closes
+      qrWindow.on("closed", () => {
+        if (server) {
+          server.close();
+          server = null;
+        }
+      });
+
+      log.info(`Serving video at http://${localIP}:${port}`);
+      return { url };
+    } catch (err) {
+      log.error(`serve-video error: ${err.message}`);
+      return { error: err.message };
+    }
   });
 
   //Select Default Folder selection

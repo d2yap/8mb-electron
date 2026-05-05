@@ -14,7 +14,7 @@ const defaultConfig = {
 function configCheck() {
   try {
     if (!fs.existsSync(configPath)) {
-      log.warn(`Config not found at ${configPath} — creating default config`);
+      log.warn(`Config not found at ${configPath}`);
       fs.writeFileSync(configPath, JSON.stringify(defaultConfig, null, 2));
     }
   } catch (e) {
