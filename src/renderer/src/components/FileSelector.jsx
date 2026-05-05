@@ -39,9 +39,10 @@ export default function FileSelector({
   const onDrop = (e) => {
     e.preventDefault();
     const files = e.dataTransfer.files;
+    console.debug("[FileSelector] File(s) dropped:", files);
     if (files && files[0]) {
       const f = files[0];
-      const p = f.path || f.name;
+      const p = window.api.getPath(f);
       // validate extensions via main allowed list? assume main will validate on compress
       setSelectedFile(p);
       api
