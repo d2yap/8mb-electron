@@ -30,3 +30,6 @@ This program will access your user data folder in order to store configuration f
 - Default Output Folder
 - Dependencies required for the program to work (FFmpeg)
 - Program does not include FFmpeg out of the box
+
+## Release
+The release is a portable version for Windows. [Click here for the Releases page.](https://github.com/d2yap/8mb-electron/releases)
