@@ -67,6 +67,7 @@ function createLoadingWindow() {
   loadingWindow = new BrowserWindow({
     width: 400,
     height: 200,
+    icon: path.join(__dirname, "..", "icon", "favicon.ico"),
     frame: false,
     webPreferences: {
       nodeIntegration: true,
@@ -85,6 +86,7 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 700,
     height: 750,
+    icon: path.join(__dirname, "..", "icon", "favicon.ico"),
     acceptFirstMouse: true,
     webPreferences: {
       preload: path.join(__dirname, "..", "preload.js"),
@@ -109,7 +111,7 @@ function createWindow() {
     }
   }
   mainWindow.setMenu(null);
-  mainWindow.webContents.openDevTools(); // Enable developer tools
+  //mainWindow.webContents.openDevTools(); // Enable developer tools
 
   // Handle file drops at the window level
   mainWindow.webContents.on("will-navigate", (event, url) => {
@@ -128,6 +130,11 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  // Set app user model ID for Windows taskbar
+  if (process.platform === "win32") {
+    app.setAppUserModelId("com.github.d2yap");
+  }
+
   getConfig(); // load config
 
   createLoadingWindow();

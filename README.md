@@ -1,6 +1,7 @@
 # 8mb-electron
 
 File size compression software using FFMPEG.
+![Screenshot of the program](readme/screenshot.png)
 
 ## Features
 

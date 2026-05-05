@@ -3,8 +3,19 @@
   <head>
     <meta charset="UTF-8" />
     <title>QR Code</title>
+    <style>
+      @font-face {
+        font-family: "JetBrains Mono";
+        src: url("./fonts/JetBrainsMonoNL-Regular.ttf") format("truetype");
+        font-weight: 400;
+      }
+
+      body {
+        font-family: "JetBrains Mono", monospace;
+      }
+    </style>
   </head>
-  <body style="text-align: center; font-family: sans-serif; padding: 20px">
+  <body style="text-align: center; padding: 20px">
     <h2>Scan to Download</h2>
     <img id="qrImage" style="width: 300px; height: auto" />
     <p><a id="link" href="#" target="_blank"></a></p>

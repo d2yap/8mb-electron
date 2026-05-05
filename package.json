@@ -17,6 +17,7 @@
       "main/",
       "variables/",
       "css/",
+      "fonts/",
       "loading.html",
       "preload.js",
       "qr.html",
@@ -26,7 +27,7 @@
       "target": [
         "portable"
       ],
-      "icon": "build/icon.ico"
+      "icon": "icon/favicon.ico"
     }
   },
   "keywords": [],

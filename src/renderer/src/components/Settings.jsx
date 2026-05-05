@@ -1,23 +1,47 @@
-import React from 'react'
-
-export default function Settings({ defaultOutput, setDefaultOutput, onChooseDefaultFolder, darkMode, setDarkMode, qrCode, setQrCode }) {
+import React from "react";
+import { Checkbox, Button, TextInput } from "@mantine/core";
+export default function Settings({
+  defaultOutput,
+  setDefaultOutput,
+  onChooseDefaultFolder,
+  darkMode,
+  setDarkMode,
+  qrCode,
+  setQrCode,
+}) {
   return (
     <div style={{ marginTop: 12 }}>
       <div className="setting-row">
-        <label>Default Output Folder</label>
-        <input id="defaultOutput" type="text" value={defaultOutput || ''} readOnly />
-        <button id="chooseDefaultFolder" onClick={onChooseDefaultFolder}>Choose Folder</button>
+        <TextInput
+          label="Default Output Folder"
+          id="defaultOutput"
+          value={defaultOutput || ""}
+          readOnly
+        />
+        <Button id="chooseDefaultFolder" onClick={onChooseDefaultFolder}>
+          Choose Folder
+        </Button>
       </div>
 
       <div className="setting-row checkbox">
-        <input id="darkModeToggle" type="checkbox" checked={darkMode} onChange={(e)=>setDarkMode(e.target.checked)} />
-        <label htmlFor="darkModeToggle">Dark Mode</label>
+        <Checkbox
+          id="darkModeToggle"
+          label="Dark Mode"
+          description="Enable dark mode."
+          checked={darkMode}
+          onChange={(e) => setDarkMode(e.target.checked)}
+        />
       </div>
 
       <div className="setting-row checkbox">
-        <input id="qrCodeToggle" type="checkbox" checked={qrCode} onChange={(e)=>setQrCode(e.target.checked)} />
-        <label htmlFor="qrCodeToggle">Generate QR Code</label>
+        <Checkbox
+          id="qrCodeToggle"
+          label="Generate QR Code"
+          description="Opens a server to generate a QR code to scan with your phone."
+          checked={qrCode}
+          onChange={(e) => setQrCode(e.target.checked)}
+        />
       </div>
     </div>
-  )
+  );
 }

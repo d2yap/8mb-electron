@@ -184,8 +184,13 @@ export default function App() {
   };
 
   return (
-    <MantineProvider forceColorScheme={darkMode ? "dark" : "light"}>
-      <div style={{ padding: 16, fontFamily: "sans-serif" }}>
+    <MantineProvider
+      forceColorScheme={darkMode ? "dark" : "light"}
+      theme={{
+        fontFamily: "JetBrains Mono, monospace",
+      }}
+    >
+      <div style={{ padding: 16 }}>
         <Title order={1}>8mb</Title>
         <Tabs variant="pills" defaultValue="compressTab">
           <Tabs.List>
@@ -241,7 +246,7 @@ export default function App() {
           </Tabs.Panel>
 
           <Tabs.Panel value="settingsTab">
-            <div id="settingsTab">
+            <Paper shadow="sm" radius="md" withBorder p="xl" id="settingsTab">
               <Settings
                 defaultOutput={defaultOutput}
                 setDefaultOutput={setDefaultOutput}
@@ -251,7 +256,7 @@ export default function App() {
                 qrCode={qrCode}
                 setQrCode={setQrCode}
               />
-            </div>
+            </Paper>
           </Tabs.Panel>
         </Tabs>
       </div>{" "}
