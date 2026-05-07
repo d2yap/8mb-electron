@@ -40,3 +40,6 @@ This software makes use of FFmpeg (https://ffmpeg.org), which is licensed under 
 
 FFmpeg source: https://ffmpeg.org/download.html
 gyan.dev build info: https://www.gyan.dev/ffmpeg/builds/
+
+## Release
+The release is a portable version for Windows. [Click here for the Releases page.](https://github.com/d2yap/8mb-electron/releases)
