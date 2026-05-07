@@ -11,6 +11,7 @@ import {
   Paper,
   TextInput,
   Button,
+  Text,
 } from "@mantine/core";
 
 export default function App() {
@@ -30,8 +31,19 @@ export default function App() {
   const [darkLoaded, setDarkLoaded] = useState(false);
   const [qrCode, setQrCode] = useState(false);
   const [activeTab, setActiveTab] = useState("compressTab");
+  const [ffmpegPath, setFfmpegPath] = useState("");
+  const [dependencies, setDependencies] = useState({});
+  const [devDependencies, setDevDependencies] = useState({});
 
   useEffect(() => {
+    // load ffmpeg path for settings
+    api
+      .invoke("get-ffmpeg-path")
+      .then((p) => {
+        if (p) setFfmpegPath(p);
+      })
+      .catch(() => {});
+
     // get default folder
     api
       .invoke("get-default-folder")
@@ -85,6 +97,17 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    // load dependencies for About tab
+    api
+      .invoke("get-dependencies")
+      .then((res) => {
+        if (res) {
+          setDependencies(res.dependencies || {});
+          setDevDependencies(res.devDependencies || {});
+        }
+      })
+      .catch(() => {});
+
     // persist dark mode to app config via IPC
     // Only persist after we've loaded the stored value to avoid overwriting it
     if (darkLoaded) {
@@ -106,6 +129,15 @@ export default function App() {
       setDefaultOutput(folder);
       setSelectedOutputFolder(folder);
       await api.invoke("save-default-folder", folder);
+    }
+  };
+
+  const onChooseFFmpegPath = async () => {
+    try {
+      const chosen = await api.invoke("choose-ffmpeg-path");
+      if (chosen) setFfmpegPath(chosen);
+    } catch (e) {
+      console.error("Failed to choose ffmpeg path:", e);
     }
   };
 
@@ -196,6 +228,7 @@ export default function App() {
           <Tabs.List>
             <Tabs.Tab value="compressTab">Compress</Tabs.Tab>
             <Tabs.Tab value="settingsTab">Settings</Tabs.Tab>
+            <Tabs.Tab value="aboutTab">About</Tabs.Tab>
           </Tabs.List>
 
           <Tabs.Panel value="compressTab">
@@ -251,11 +284,47 @@ export default function App() {
                 defaultOutput={defaultOutput}
                 setDefaultOutput={setDefaultOutput}
                 onChooseDefaultFolder={onChooseDefaultFolder}
+                onChooseFFmpegPath={onChooseFFmpegPath}
+                ffmpegPath={ffmpegPath}
                 darkMode={darkMode}
                 setDarkMode={setDarkMode}
                 qrCode={qrCode}
                 setQrCode={setQrCode}
               />
+            </Paper>
+          </Tabs.Panel>
+
+          <Tabs.Panel value="aboutTab">
+            <Paper shadow="sm" radius="md" withBorder p="xl" id="aboutTab">
+              <Title order={1}>8mb v.0.1.1-fix2</Title>{" "}
+              <Title order={4} mt="md">
+                Dependencies
+              </Title>
+              {Object.keys(dependencies).length === 0 ? (
+                <Text color="dim">No runtime dependencies found.</Text>
+              ) : (
+                <div style={{ marginTop: 8 }}>
+                  {Object.entries(dependencies).map(([name, ver]) => (
+                    <Text key={name} size="sm">
+                      {name}: {ver}
+                    </Text>
+                  ))}
+                </div>
+              )}
+              <Title order={4} mt="md">
+                Dev Dependencies
+              </Title>
+              {Object.keys(devDependencies).length === 0 ? (
+                <Text color="dim">No dev dependencies found.</Text>
+              ) : (
+                <div style={{ marginTop: 8 }}>
+                  {Object.entries(devDependencies).map(([name, ver]) => (
+                    <Text key={name} size="sm">
+                      {name}: {ver}
+                    </Text>
+                  ))}
+                </div>
+              )}
             </Paper>
           </Tabs.Panel>
         </Tabs>

@@ -184,6 +184,7 @@ async function compressVideoWithSpawn({
   const ext = path.extname(outputPath).toLowerCase();
   const isWebM = ext === ".webm";
   const args = ["-i", inputPath, "-y"];
+  // WEBM
   if (isWebM) {
     args.push(
       "-c:v",
@@ -208,24 +209,67 @@ async function compressVideoWithSpawn({
       args.push("-c:a", "libopus", "-b:a", "128k");
     }
   } else {
-    // mp4, mkv, mov, etc.
-    args.push("-c:v", "libx264", "-preset", "medium");
-    if (crfArg) {
-      args.push("-crf", crfArg);
+    if (ext === ".mov") {
+      // MOV
+      args.push("-c:v", "libx264", "-preset", "medium");
+      if (crfArg) {
+        args.push("-crf", crfArg);
+      } else {
+        args.push(
+          "-b:v",
+          videoBitrateArg,
+          "-maxrate",
+          videoBitrateArg,
+          "-bufsize",
+          `${parseInt(videoBitrateArg) * 2}k`,
+        );
+      }
+      if (noAudio) {
+        args.push("-an");
+      } else {
+        args.push("-c:a", "aac", "-b:a", "128k");
+      }
+    } else if (ext === ".avi") {
+      // AVI
+      args.push("-c:v", "mpeg4");
+      if (crfArg) {
+        const q = Math.max(1, Math.min(31, parseInt(crfArg) || 5));
+        args.push("-qscale:v", String(q));
+      } else {
+        args.push(
+          "-b:v",
+          videoBitrateArg,
+          "-maxrate",
+          videoBitrateArg,
+          "-bufsize",
+          `${parseInt(videoBitrateArg) * 2}k`,
+        );
+      }
+      if (noAudio) {
+        args.push("-an");
+      } else {
+        args.push("-c:a", "libmp3lame", "-b:a", "128k");
+      }
     } else {
-      args.push(
-        "-b:v",
-        videoBitrateArg,
-        "-maxrate",
-        videoBitrateArg,
-        "-bufsize",
-        `${parseInt(videoBitrateArg) * 2}k`,
-      );
-    }
-    if (noAudio) {
-      args.push("-an");
-    } else {
-      args.push("-c:a", "aac", "-b:a", "128k");
+      // MP4/MKV
+      args.push("-c:v", "libx264", "-preset", "medium");
+      if (crfArg) {
+        args.push("-crf", crfArg);
+      } else {
+        args.push(
+          "-b:v",
+          videoBitrateArg,
+          "-maxrate",
+          videoBitrateArg,
+          "-bufsize",
+          `${parseInt(videoBitrateArg) * 2}k`,
+        );
+      }
+      if (noAudio) {
+        args.push("-an");
+      } else {
+        args.push("-c:a", "aac", "-b:a", "128k");
+      }
     }
   }
 
@@ -566,6 +610,58 @@ function registerIpcHandlers() {
       return cfg.defaultOutputFolder;
     } catch (e) {
       log.error("get-default-folder error:", e && e.message);
+      return null;
+    }
+  });
+
+  // Return project dependencies from package.json for About dialog
+  ipcMain.handle("get-dependencies", async () => {
+    try {
+      const pkgPath = path.join(__dirname, "..", "package.json");
+      if (!fs.existsSync(pkgPath))
+        return { dependencies: {}, devDependencies: {} };
+      const raw = fs.readFileSync(pkgPath, { encoding: "utf8" });
+      const parsed = JSON.parse(raw || "{}");
+      return {
+        dependencies: parsed.dependencies || {},
+        devDependencies: parsed.devDependencies || {},
+      };
+    } catch (err) {
+      log.error("get-dependencies error:", err && err.message);
+      return { dependencies: {}, devDependencies: {} };
+    }
+  });
+
+  // Open file dialog to choose ffmpeg executable and save to config
+  ipcMain.handle("choose-ffmpeg-path", async () => {
+    try {
+      const result = await dialog.showOpenDialog({
+        properties: ["openFile"],
+        filters: [{ name: "Executables", extensions: ["exe", ""] }],
+      });
+      if (result.canceled || !result.filePaths || result.filePaths.length === 0)
+        return null;
+      const chosen = result.filePaths[0];
+      try {
+        // persist selection
+        const { setFFmpegPath } = require("./configManager");
+        setFFmpegPath(chosen);
+      } catch (e) {
+        log.error("Failed to save ffmpegPath:", e && e.message);
+      }
+      return chosen;
+    } catch (err) {
+      log.error("choose-ffmpeg-path error:", err && err.message);
+      return null;
+    }
+  });
+
+  ipcMain.handle("get-ffmpeg-path", async () => {
+    try {
+      const { getFFmpegPath } = require("./configManager");
+      return getFFmpegPath();
+    } catch (err) {
+      log.error("get-ffmpeg-path error:", err && err.message);
       return null;
     }
   });
