@@ -4,6 +4,8 @@ export default function Settings({
   defaultOutput,
   setDefaultOutput,
   onChooseDefaultFolder,
+  onChooseFFmpegPath,
+  ffmpegPath,
   darkMode,
   setDarkMode,
   qrCode,
@@ -20,6 +22,18 @@ export default function Settings({
         />
         <Button id="chooseDefaultFolder" onClick={onChooseDefaultFolder}>
           Choose Folder
+        </Button>
+      </div>
+
+      <div className="setting-row">
+        <TextInput
+          label="FFmpeg Path"
+          id="ffmpegPath"
+          value={ffmpegPath || ""}
+          readOnly
+        />
+        <Button id="chooseFFmpegPath" onClick={onChooseFFmpegPath}>
+          Choose FFmpeg Path
         </Button>
       </div>
 
