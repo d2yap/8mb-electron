@@ -618,17 +618,15 @@ function registerIpcHandlers() {
   ipcMain.handle("get-dependencies", async () => {
     try {
       const pkgPath = path.join(__dirname, "..", "package.json");
-      if (!fs.existsSync(pkgPath))
-        return { dependencies: {}, devDependencies: {} };
+      if (!fs.existsSync(pkgPath)) return { dependencies: {} };
       const raw = fs.readFileSync(pkgPath, { encoding: "utf8" });
       const parsed = JSON.parse(raw || "{}");
       return {
         dependencies: parsed.dependencies || {},
-        devDependencies: parsed.devDependencies || {},
       };
     } catch (err) {
       log.error("get-dependencies error:", err && err.message);
-      return { dependencies: {}, devDependencies: {} };
+      return { dependencies: {} };
     }
   });
 

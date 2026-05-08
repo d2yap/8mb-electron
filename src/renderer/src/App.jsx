@@ -12,6 +12,7 @@ import {
   TextInput,
   Button,
   Text,
+  Divider,
 } from "@mantine/core";
 
 export default function App() {
@@ -33,9 +34,18 @@ export default function App() {
   const [activeTab, setActiveTab] = useState("compressTab");
   const [ffmpegPath, setFfmpegPath] = useState("");
   const [dependencies, setDependencies] = useState({});
-  const [devDependencies, setDevDependencies] = useState({});
 
   useEffect(() => {
+    // load dependencies for About tab
+    api
+      .invoke("get-dependencies")
+      .then((res) => {
+        if (res) {
+          setDependencies(res.dependencies || {});
+        }
+      })
+      .catch(() => {});
+
     // load ffmpeg path for settings
     api
       .invoke("get-ffmpeg-path")
@@ -97,17 +107,6 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    // load dependencies for About tab
-    api
-      .invoke("get-dependencies")
-      .then((res) => {
-        if (res) {
-          setDependencies(res.dependencies || {});
-          setDevDependencies(res.devDependencies || {});
-        }
-      })
-      .catch(() => {});
-
     // persist dark mode to app config via IPC
     // Only persist after we've loaded the stored value to avoid overwriting it
     if (darkLoaded) {
@@ -254,7 +253,7 @@ export default function App() {
                 chooseOutputFolder={chooseOutputFolder}
                 selectedOutputFolder={selectedOutputFolder}
               />
-
+              <Divider label="Progress" my="md" />
               <Progress progress={progress} status={status} />
 
               <div className="button-row" style={{ marginTop: 12 }}>
@@ -296,29 +295,15 @@ export default function App() {
 
           <Tabs.Panel value="aboutTab">
             <Paper shadow="sm" radius="md" withBorder p="xl" id="aboutTab">
-              <Title order={1}>8mb v.0.1.1-fix2</Title>{" "}
+              <Title order={1}>8mb v.0.1.2</Title> <Text>Clean up version</Text>
               <Title order={4} mt="md">
-                Dependencies
+                Dependencies used:
               </Title>
               {Object.keys(dependencies).length === 0 ? (
                 <Text color="dim">No runtime dependencies found.</Text>
               ) : (
                 <div style={{ marginTop: 8 }}>
                   {Object.entries(dependencies).map(([name, ver]) => (
-                    <Text key={name} size="sm">
-                      {name}: {ver}
-                    </Text>
-                  ))}
-                </div>
-              )}
-              <Title order={4} mt="md">
-                Dev Dependencies
-              </Title>
-              {Object.keys(devDependencies).length === 0 ? (
-                <Text color="dim">No dev dependencies found.</Text>
-              ) : (
-                <div style={{ marginTop: 8 }}>
-                  {Object.entries(devDependencies).map(([name, ver]) => (
                     <Text key={name} size="sm">
                       {name}: {ver}
                     </Text>

@@ -89,8 +89,17 @@ export default function Controls({
       {/* Debug: Audio removed */}
 
       <div style={{ marginTop: 8 }}>
+        <TextInput
+          id="folderOutputDisplay"
+          label="Output Folder"
+          description="Select the desired output folder."
+          placeholder={selectedOutputFolder || "None selected"}
+          disabled
+        />
+
         <Button
-          size="md"
+          size="sm"
+          description="r"
           color="blue"
           id="chooseOutputFolder"
           onClick={() => {
@@ -100,14 +109,6 @@ export default function Controls({
         >
           Select Output Folder
         </Button>
-        {/* Debug: Output folder */}
-        <div
-          id="folderOutputDisplay"
-          style={{ marginTop: 6, fontStyle: "italic" }}
-        >
-          {selectedOutputFolder || "None selected"}
-        </div>
-        <Divider label="Progress" my="md" />
       </div>
     </div>
   );
