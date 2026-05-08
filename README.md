@@ -1,8 +1,10 @@
+<img src="readme/logo.png" alt="Logo" width="65">
+
 # 8mb-electron
 
 File size compression software using FFmpeg for Windows.
 
-![Screenshot of the program](readme/screenshot.png)
+<img src="readme/screenshot.png" alt="Screenshot of the program" width="300">
 
 ## Features
 

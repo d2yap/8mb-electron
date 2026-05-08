@@ -16,15 +16,12 @@ let loadingWindow;
 const { exec } = require("child_process");
 
 /**
- *
- * -> null value is used for choiceFFmpeg to look for a file path
- */
-
-/**
  * Looks for FFmpeg and returns null if FFmpeg is not found from the config
  * * @async
  * @param {Electron.BrowserWindow} mainWindow - app window
  * @returns {Promise<string|null>} Resolves promise with normalized FFmpeg path or null if no exe is found.
+ *
+ * > null value is used for choiceFFmpeg to look for a file path
  */
 async function setupFFmpeg(mainWindow) {
   // Get the ffmpeg config file path
@@ -173,7 +170,9 @@ async function choiceFFmpeg(loadingWindow) {
   });
 }
 
-// window for handling downloading/ffmpeg location
+/**
+ * Window for handling downloading/ffmpeg location
+ */
 function createLoadingWindow() {
   loadingWindow = new BrowserWindow({
     width: 500,

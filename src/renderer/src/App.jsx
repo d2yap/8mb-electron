@@ -12,6 +12,7 @@ import {
   TextInput,
   Button,
   Text,
+  Divider,
 } from "@mantine/core";
 
 export default function App() {
@@ -252,7 +253,7 @@ export default function App() {
                 chooseOutputFolder={chooseOutputFolder}
                 selectedOutputFolder={selectedOutputFolder}
               />
-
+              <Divider label="Progress" my="md" />
               <Progress progress={progress} status={status} />
 
               <div className="button-row" style={{ marginTop: 12 }}>
