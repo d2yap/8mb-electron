@@ -1,6 +1,7 @@
 # 8mb-electron
 
-File size compression software using FFmpeg.
+File size compression software using FFmpeg for Windows.
+
 ![Screenshot of the program](readme/screenshot.png)
 
 ## Features
@@ -17,7 +18,9 @@ File size compression software using FFmpeg.
 npm run dev
 ```
 
-This runs Vite (renderer) and Electron concurrently. To run only Electron (legacy start):
+This runs Vite (renderer) and Electron concurrently.
+
+To run only Electron (legacy start):
 
 ```bash
 npm start
@@ -34,9 +37,10 @@ This program will access your user data folder in order to store configuration f
 ## License
 
 This project is licensed under the GNU General Public License v3.0. See LICENSE for the full text.
-This software makes use of FFmpeg (https://ffmpeg.org), which is licensed under the GPL-2.0-or-later when compiled with libx264. FFmpeg is not distributed with this software.
+This software makes use of FFmpeg (https://ffmpeg.org). FFmpeg is not distributed with this software.
 
 ## Source code
 
-FFmpeg source: https://ffmpeg.org/download.html
-gyan.dev build info: https://www.gyan.dev/ffmpeg/builds/
+- FFmpeg source: https://ffmpeg.org/download.html
+
+- gyan.dev build info: https://www.gyan.dev/ffmpeg/builds/

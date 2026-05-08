@@ -24,18 +24,66 @@
     </style>
   </head>
   <body>
-    <h2>Downloading FFmpeg, please wait...</h2>
-    <progress id="downloadProgressBar" max="100" value="0"></progress>
+    <h2>FFmpeg is required</h2>
+    <p>Select how you'd like to provide FFmpeg for this app:</p>
+
+    <div>
+      <button id="btnDownload">Download FFmpeg through gyan.dev</button>
+      <button id="btnLocate">Locate ffmpeg.exe</button>
+      <button id="btnAuto">Auto-detect on PATH</button>
+    </div>
+
+    <div id="status" style="margin-top: 12px">Waiting for selection...</div>
+    <progress
+      id="downloadProgressBar"
+      max="100"
+      value="0"
+      style="width: 100%; display: none"
+    ></progress>
+
     <script>
-      // Loading bar for the start screen
       const { ipcRenderer } = require("electron");
 
+      const btnDownload = document.getElementById("btnDownload");
+      const btnLocate = document.getElementById("btnLocate");
+      const btnAuto = document.getElementById("btnAuto");
       const progressBar = document.getElementById("downloadProgressBar");
+      const status = document.getElementById("status");
+
+      function setStatus(text) {
+        if (status) status.innerText = text;
+      }
+
+      btnDownload.addEventListener("click", () => {
+        setStatus("Starting download...");
+        progressBar.style.display = "block";
+        ipcRenderer.send("ffmpeg-choice", "download");
+      });
+
+      btnLocate.addEventListener("click", () => {
+        setStatus("Opening file dialog...");
+        ipcRenderer.send("ffmpeg-choice", "locate");
+      });
+
+      btnAuto.addEventListener("click", () => {
+        setStatus("Attempting to locate ffmpeg on PATH...");
+        ipcRenderer.send("ffmpeg-choice", "auto-detect");
+      });
 
       ipcRenderer.on("ffmpeg-download-progress", (event, percent) => {
         if (progressBar) {
           progressBar.value = percent;
         }
+        setStatus(`Downloading... ${percent}%`);
+      });
+
+      ipcRenderer.on("ffmpeg-setup-complete", (event, ffmpegPath) => {
+        setStatus(`FFmpeg ready: ${ffmpegPath}`);
+      });
+
+      ipcRenderer.on("ffmpeg-setup-error", (event, message) => {
+        setStatus(`Error: ${message}`);
+        progressBar.style.display = "none";
       });
     </script>
   </body>

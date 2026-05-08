@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require("electron");
+const { app, BrowserWindow, ipcMain, dialog } = require("electron");
 const { registerIpcHandlers } = require("./ipcHandlers");
 const { getConfig } = require("./configManager");
 const fs = require("fs");
@@ -13,60 +13,171 @@ const log = require("electron-log");
 let mainWindow;
 let loadingWindow;
 
+const { exec } = require("child_process");
+
+/**
+ *
+ * -> null value is used for choiceFFmpeg to look for a file path
+ */
+
+/**
+ * Looks for FFmpeg and returns null if FFmpeg is not found from the config
+ * * @async
+ * @param {Electron.BrowserWindow} mainWindow - app window
+ * @returns {Promise<string|null>} Resolves promise with normalized FFmpeg path or null if no exe is found.
+ */
 async function setupFFmpeg(mainWindow) {
+  // Get the ffmpeg config file path
   let ffmpegPath = configManager.getConfig().ffmpegPath;
-  console.log("Configured ffmpegPath (raw):", ffmpegPath);
+
+  // clean file path
   try {
     if (ffmpegPath) ffmpegPath = path.normalize(ffmpegPath);
-  } catch (e) {
-    // ignore
-  }
+  } catch (e) {}
 
-  if (!ffmpegPath || !fs.existsSync(ffmpegPath)) {
-    console.log("FFmpeg not found or invalid path. Downloading...");
-    try {
-      ffmpegPath = await downloadFFmpegWindows((percent) => {
-        if (mainWindow && mainWindow.webContents) {
-          console.log("Download progress:", percent);
-          mainWindow.webContents.send("ffmpeg-download-progress", percent);
-        }
-      });
-      try {
-        ffmpegPath = path.normalize(ffmpegPath);
-      } catch (e) {}
-      console.log("FFmpeg downloaded to:", ffmpegPath);
-    } catch (error) {
-      console.error("FFmpeg download failed:", error);
-      process.exit(0);
-    }
-  } else {
+  if (ffmpegPath && fs.existsSync(ffmpegPath)) {
     console.log("Using existing FFmpeg at:", ffmpegPath);
+    return ffmpegPath;
   }
 
-  // Final validation: ensure file exists, else attempt to find in userData/ffmpeg
-  if (!fs.existsSync(ffmpegPath)) {
-    try {
-      const { findFFmpegBinary } = require("./download");
-      const candidate = findFFmpegBinary(
-        path.join(app.getPath("userData"), "ffmpeg"),
-      );
-      if (candidate && fs.existsSync(candidate)) {
-        ffmpegPath = path.normalize(candidate);
-        console.log("Located ffmpeg binary at:", ffmpegPath);
-        configManager.setFFmpegPath(ffmpegPath);
-      } else {
-        console.error("Failed to locate ffmpeg binary after download.");
-      }
-    } catch (err) {
-      console.error("Error searching for ffmpeg binary:", err);
-    }
-  }
+  // go to setup
+  return null;
 }
 
+/**
+ * Helps the FFmpeg process by notifying the user through the loading window.
+ * * @async
+ * @param {Electron.BrowserWindow} loadingWindow - Window used to visualize process and recieve user choices through IPC
+ * @returns {Promise<string|void>} Promise that resolves with a valid FFmpeg path, or void if the process completes through UI resolve.
+ */
+async function choiceFFmpeg(loadingWindow) {
+  const configPath = await setupFFmpeg(loadingWindow);
+  if (configPath) return configPath;
+
+  return new Promise((resolve) => {
+    const handleChoice = async (event, choice) => {
+      try {
+        if (!loadingWindow || !loadingWindow.webContents) return;
+
+        if (choice === "download") {
+          try {
+            const ffmpegPath = await downloadFFmpegWindows((percent) => {
+              if (loadingWindow && loadingWindow.webContents)
+                loadingWindow.webContents.send(
+                  "ffmpeg-download-progress",
+                  percent,
+                );
+            });
+            configManager.setFFmpegPath(ffmpegPath);
+            loadingWindow.webContents.send("ffmpeg-setup-complete", ffmpegPath);
+            ipcMain.removeListener("ffmpeg-choice", handleChoice);
+            return resolve();
+          } catch (err) {
+            console.error("Download failed:", err);
+            loadingWindow.webContents.send(
+              "ffmpeg-setup-error",
+              err.message || String(err),
+            );
+            return;
+          }
+        }
+
+        // Locate
+        if (choice === "locate") {
+          try {
+            const res = await dialog.showOpenDialog(loadingWindow, {
+              properties: ["openFile"],
+              filters: [
+                {
+                  name: "Executable",
+                  extensions: process.platform === "win32" ? ["exe"] : [],
+                },
+              ],
+            });
+            if (res.canceled || !res.filePaths || res.filePaths.length === 0) {
+              loadingWindow.webContents.send(
+                "ffmpeg-setup-error",
+                "File selection cancelled",
+              );
+              return;
+            }
+            const chosen = res.filePaths[0];
+            if (!fs.existsSync(chosen)) {
+              loadingWindow.webContents.send(
+                "ffmpeg-setup-error",
+                "Selected file does not exist",
+              );
+              return;
+            }
+            configManager.setFFmpegPath(chosen);
+            loadingWindow.webContents.send("ffmpeg-setup-complete", chosen);
+            ipcMain.removeListener("ffmpeg-choice", handleChoice);
+            return resolve();
+          } catch (err) {
+            loadingWindow.webContents.send(
+              "ffmpeg-setup-error",
+              err.message || String(err),
+            );
+            return;
+          }
+        }
+
+        // Auto-detect
+        if (choice === "auto-detect") {
+          const whichCmd =
+            process.platform === "win32" ? "where ffmpeg" : "which ffmpeg";
+          exec(whichCmd, (err, stdout) => {
+            if (err || !stdout) {
+              loadingWindow.webContents.send(
+                "ffmpeg-setup-error",
+                "ffmpeg not found on PATH",
+              );
+              return;
+            }
+            const candidate = stdout.split(/\r?\n/)[0].trim();
+            if (!candidate || !fs.existsSync(candidate)) {
+              loadingWindow.webContents.send(
+                "ffmpeg-setup-error",
+                "ffmpeg not found on PATH",
+              );
+              return;
+            }
+            try {
+              configManager.setFFmpegPath(candidate);
+              loadingWindow.webContents.send(
+                "ffmpeg-setup-complete",
+                candidate,
+              );
+              ipcMain.removeListener("ffmpeg-choice", handleChoice);
+              return resolve();
+            } catch (e) {
+              loadingWindow.webContents.send(
+                "ffmpeg-setup-error",
+                e.message || String(e),
+              );
+              return;
+            }
+          });
+        }
+      } catch (e) {
+        console.error("Error handling ffmpeg choice:", e);
+        if (loadingWindow && loadingWindow.webContents)
+          loadingWindow.webContents.send(
+            "ffmpeg-setup-error",
+            e.message || String(e),
+          );
+      }
+    };
+
+    ipcMain.on("ffmpeg-choice", handleChoice);
+  });
+}
+
+// window for handling downloading/ffmpeg location
 function createLoadingWindow() {
   loadingWindow = new BrowserWindow({
-    width: 400,
-    height: 200,
+    width: 500,
+    height: 300,
     icon: path.join(__dirname, "..", "icon", "favicon.ico"),
     frame: false,
     webPreferences: {
@@ -80,6 +191,7 @@ function createLoadingWindow() {
   loadingWindow.setMenu(null);
 }
 
+// actual window
 function createWindow() {
   const devUrl = process.env.VITE_DEV_SERVER_URL; // set by dev script when running Vite
 
@@ -113,7 +225,7 @@ function createWindow() {
   mainWindow.setMenu(null);
   //mainWindow.webContents.openDevTools(); // Enable developer tools
 
-  // Handle file drops at the window level
+  // Handle file drops at the window level -> this is for file dropping
   mainWindow.webContents.on("will-navigate", (event, url) => {
     if (url.startsWith("file:///")) {
       event.preventDefault();
@@ -139,7 +251,8 @@ app.whenReady().then(async () => {
 
   createLoadingWindow();
 
-  await setupFFmpeg(loadingWindow);
+  // Check for user's FFmpeg file path, etc
+  await choiceFFmpeg(loadingWindow);
 
   if (loadingWindow) {
     loadingWindow.close();
