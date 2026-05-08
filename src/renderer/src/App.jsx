@@ -295,7 +295,8 @@ export default function App() {
 
           <Tabs.Panel value="aboutTab">
             <Paper shadow="sm" radius="md" withBorder p="xl" id="aboutTab">
-              <Title order={1}>8mb v.0.1.2</Title> <Text>Clean up version</Text>
+              <Title order={1}>8mb v.0.1.2</Title>{" "}
+              <Text>Streamline version</Text>
               <Title order={4} mt="md">
                 Dependencies used:
               </Title>
