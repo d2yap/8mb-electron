@@ -241,12 +241,12 @@ function createWindow() {
   });
 }
 
-app.whenReady().then(async () => {
-  // Set app user model ID for Windows taskbar
-  if (process.platform === "win32") {
-    app.setAppUserModelId("com.github.d2yap");
-  }
+// Set app user model ID for Windows taskbar
+if (process.platform === "win64") {
+  app.setAppUserModelId("com.github.d2yap");
+}
 
+app.whenReady().then(async () => {
   getConfig(); // load config
 
   createLoadingWindow();
