@@ -2,7 +2,7 @@
 
 # 8mb-electron
 
-File size compression software using FFmpeg for Windows.
+File size compression software using FFmpeg for Windows and Linux.
 
 <img src="readme/screenshot.png" alt="Screenshot of the program" width="300">
 
@@ -41,8 +41,11 @@ This program will access your user data folder in order to store configuration f
 This project is licensed under the GNU General Public License v3.0. See LICENSE for the full text.
 This software makes use of FFmpeg (https://ffmpeg.org). FFmpeg is not distributed with this software.
 
-## Source code
+## Source code for other packages
 
 - FFmpeg source: https://ffmpeg.org/download.html
-
 - gyan.dev build info: https://www.gyan.dev/ffmpeg/builds/
+
+## AI disclosure
+
+AI assistance has been used for the project, code is reviewed before inserted into the repository.

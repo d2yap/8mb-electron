@@ -24,6 +24,7 @@ const {
   getDarkMode,
   getFFmpegPath,
 } = require("./configManager");
+const { ffprobeFor, executableFilter } = require("./platform");
 
 let server;
 //For processing loops
@@ -73,8 +74,8 @@ function getVideoDuration(inputPath) {
       return reject(new Error("FFmpeg path not configured"));
     }
 
-    // ffprobe is in the same directory as ffmpeg
-    const ffprobePath = path.join(path.dirname(ffmpegPath), "ffprobe.exe");
+    // ffprobe is in the same directory as ffmpeg (follows symlinks on Unix)
+    const ffprobePath = ffprobeFor(ffmpegPath);
 
     log.info(`Attempting to run ffprobe: ${ffprobePath}`);
     log.info(`Input file: ${inputPath}`);
@@ -635,7 +636,7 @@ function registerIpcHandlers() {
     try {
       const result = await dialog.showOpenDialog({
         properties: ["openFile"],
-        filters: [{ name: "Executables", extensions: ["exe", ""] }],
+        filters: [executableFilter()],
       });
       if (result.canceled || !result.filePaths || result.filePaths.length === 0)
         return null;

@@ -6,6 +6,12 @@ const configManager = require("./configManager");
 const { downloadFFmpegWindows } = require("./download");
 const path = require("path");
 const { allowedExtensions } = require("../variables/allowedExtensions");
+const {
+  isWin,
+  supportsAutoDownload,
+  packageManagerHint,
+  ffmpegBinName,
+} = require("./platform");
 
 //logging / debug stuff
 const log = require("electron-log");
@@ -57,6 +63,13 @@ async function choiceFFmpeg(loadingWindow) {
         if (!loadingWindow || !loadingWindow.webContents) return;
 
         if (choice === "download") {
+          if (!supportsAutoDownload()) {
+            loadingWindow.webContents.send(
+              "ffmpeg-setup-error",
+              `Automatic download isn't available on this platform. Install FFmpeg with: ${packageManagerHint()}`,
+            );
+            return;
+          }
           try {
             const ffmpegPath = await downloadFFmpegWindows((percent) => {
               if (loadingWindow && loadingWindow.webContents)
@@ -135,7 +148,9 @@ async function choiceFFmpeg(loadingWindow) {
             if (!candidate || !fs.existsSync(candidate)) {
               loadingWindow.webContents.send(
                 "ffmpeg-setup-error",
-                "ffmpeg not found on PATH",
+                supportsAutoDownload()
+                  ? "ffmpeg not found on PATH"
+                  : `ffmpeg not found on PATH. Install it with: ${packageManagerHint()}`,
               );
               return;
             }
@@ -188,6 +203,16 @@ function createLoadingWindow() {
 
   loadingWindow.loadFile("loading.html");
   loadingWindow.setMenu(null);
+
+  // Let the UI adapt to the platform (e.g. hide the Download button on Linux)
+  loadingWindow.webContents.on("did-finish-load", () => {
+    loadingWindow.webContents.send("platform-info", {
+      platform: process.platform,
+      supportsAutoDownload: supportsAutoDownload(),
+      packageManagerHint: packageManagerHint(),
+      ffmpegBinName: ffmpegBinName(),
+    });
+  });
 }
 
 // actual window
@@ -241,7 +266,7 @@ function createWindow() {
 }
 
 // Set app user model ID for Windows taskbar
-if (process.platform === "win64") {
+if (isWin) {
   app.setAppUserModelId("com.github.d2yap");
 }
 

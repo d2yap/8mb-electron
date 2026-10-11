@@ -85,6 +85,20 @@
         setStatus(`Error: ${message}`);
         progressBar.style.display = "none";
       });
+
+      // Adapt the UI to the host platform (sent by the main process)
+      ipcRenderer.on("platform-info", (event, info) => {
+        if (!info) return;
+        if (info.ffmpegBinName) {
+          btnLocate.innerText = `Locate ${info.ffmpegBinName}`;
+        }
+        if (!info.supportsAutoDownload) {
+          btnDownload.style.display = "none";
+          setStatus(
+            `FFmpeg is required. Install it with your package manager (e.g. ${info.packageManagerHint}), then use Auto-detect or Locate.`,
+          );
+        }
+      });
     </script>
   </body>
 </html>

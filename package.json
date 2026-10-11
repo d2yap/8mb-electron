@@ -2,13 +2,16 @@
   "name": "8mb",
   "version": "0.1.2",
   "main": "main/main.js",
+  "desktopName": "8mb.desktop",
   "scripts": {
     "start": "electron .",
     "dev:renderer": "cd src/renderer && vite",
     "dev:electron": "wait-on http://localhost:5173 && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .",
     "dev": "concurrently \"npm:dev:renderer\" \"npm:dev:electron\"",
     "build:renderer": "cd src/renderer && vite build",
-    "build": "npm run build:renderer && electron-builder"
+    "build": "npm run build:renderer && electron-builder",
+    "build:linux": "npm run build:renderer && electron-builder --linux",
+    "build:win": "npm run build:renderer && electron-builder --win"
   },
   "build": {
     "appId": "com.github.d2yap",
@@ -28,13 +31,22 @@
         "portable"
       ],
       "icon": "icon/favicon.ico"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "icon": "icon/512x512.png",
+      "category": "AudioVideo",
+      "desktopName": "8mb.desktop",
+      "syncDesktopName": true
     }
   },
   "keywords": [],
   "author": "",
   "license": "GPL-3.0-or-later",
   "type": "commonjs",
-  "description": "",
+  "description": "File size compression software using FFmpeg, with QR code PC-to-phone transfer.",
   "dependencies": {
     "@mantine/core": "^7.17.8",
     "@mantine/hooks": "^7.17.8",

@@ -6,6 +6,7 @@ const { app } = require("electron");
 
 //config setting
 const { setFFmpegPath } = require("./configManager");
+const { ffmpegBinName, isWin } = require("./platform");
 
 function downloadWithRedirect(url, file, onProgress) {
   return new Promise((resolve, reject) => {
@@ -53,6 +54,14 @@ function downloadWithRedirect(url, file, onProgress) {
 }
 
 async function downloadFFmpegWindows(onProgress) {
+  if (!isWin) {
+    throw new Error(
+      "Automatic FFmpeg download is only supported on Windows. " +
+        "Please install FFmpeg with your package manager (e.g. `sudo apt install ffmpeg`) " +
+        "or use Locate/Auto-detect.",
+    );
+  }
+
   const downloadUrl =
     "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip";
   const downloadPath = path.join(app.getPath("userData"), "ffmpeg.zip");
@@ -93,6 +102,7 @@ async function downloadFFmpegWindows(onProgress) {
   });
 }
 
+// this is for windows
 function findFFmpegBinary(folder) {
   if (!fs.existsSync(folder)) throw new Error("FFmpeg folder not found");
   const files = fs.readdirSync(folder, { withFileTypes: true });
@@ -134,9 +144,9 @@ function findFFmpegBinary(folder) {
   });
 
   const chosen = parsed[0];
-  const ffmpegExe = path.join(chosen.full, "bin", "ffmpeg.exe");
+  const ffmpegExe = path.join(chosen.full, "bin", ffmpegBinName());
   if (!fs.existsSync(ffmpegExe))
-    throw new Error("ffmpeg.exe not found in " + chosen.full);
+    throw new Error("ffmpeg binary not found in " + chosen.full);
   return ffmpegExe;
 }
 
