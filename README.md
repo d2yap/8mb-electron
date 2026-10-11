@@ -36,6 +36,8 @@ This program will access your user data folder in order to store configuration f
 - Dependencies required for the program to work (FFmpeg)
 - Program does not include FFmpeg out of the box
 
+On Linux, it will use your .local folder for configuration files.
+
 ## License
 
 This project is licensed under the GNU General Public License v3.0. See LICENSE for the full text.
